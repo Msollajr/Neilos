@@ -1,0 +1,6 @@
+Options -Indexes
+RewriteEngine On
+
+# Redirect to public if accessed from root
+RewriteCond %{REQUEST_URI} ^/Neilos/?$
+RewriteRule ^ /Neilos/public/ [L,R=301]

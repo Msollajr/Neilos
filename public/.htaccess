@@ -1,0 +1,10 @@
+Options -Indexes
+RewriteEngine On
+RewriteBase /Neilos/public/
+
+# Allow direct access to assets
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Route everything else to index.php
+RewriteRule ^ index.php [L]

@@ -1,0 +1,8 @@
+"Customer Name","GPS Coordinates","Building Name","Floor Number","Apartment Number","Contact Phone","Contact Email",Package
+"Example Customer","-6.7924,39.2083","Example Building","3rd Floor","Apt 12B",+255712345678,customer@example.com,"50 Mbps"
+,,,,,,,"20 Mbps"
+,,,,,,,"30 Mbps"
+,,,,,,,"40 Mbps"
+,,,,,,,"60 Mbps"
+,,,,,,,"80 Mbps"
+,,,,,,,"100 Mbps"
