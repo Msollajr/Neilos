@@ -10,7 +10,7 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:22px;margin-bottom:24px">
+<div class="grid-dashboard mb-24">
   <div class="card">
     <div class="card-header"><div class="card-title">Project Details</div></div>
     <div class="card-body">

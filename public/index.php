@@ -51,6 +51,7 @@ $controllerMap = [
     'projects'        => 'projects',
     'reports'         => 'reports',
     'profile'         => 'profile',
+    'activity_logs'   => 'activity_logs',
 ];
 
 $controller = $controllerMap[$page] ?? 'dashboard';

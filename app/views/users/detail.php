@@ -14,7 +14,7 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px">
+<div class="grid-2col mb-24">
   <div class="card">
     <div class="card-header"><div class="card-title">User Information</div></div>
     <div class="card-body">

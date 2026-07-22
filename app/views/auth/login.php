@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — Neilos Partner Portal</title>
   <meta name="description" content="Neilos Partner Portal — Secure Login">
-  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/portal.css?v=3">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/portal.css?v=<?= time() ?>">
   <link rel="icon" type="image/png" href="<?= APP_URL ?>/favicon.ico?v=2">
+  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('neilos-theme')||'light');</script>
 </head>
 <body>
 <div class="login-page">
@@ -59,7 +63,7 @@
 
     <div class="divider"></div>
     <div style="text-align:center;font-size:.78rem;color:var(--text-muted)">
-      Demo credentials: <strong>admin / password</strong> | <strong>savanna / password</strong>
+      Demo credentials: <strong>admin / Admin@1234</strong> | <strong>savanna / password</strong> | <strong>bsa / Admin@1234</strong>
     </div>
     <div style="text-align:center;font-size:.72rem;color:var(--text-muted);margin-top:20px">
       &copy; <?= date('Y') ?> Neilos Network · Partner Portal v1.0

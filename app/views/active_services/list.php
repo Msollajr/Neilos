@@ -12,7 +12,7 @@
     <form method="GET" action="">
       <input type="hidden" name="page" value="active_services">
       <div class="filter-bar">
-        <div class="search-box" style="flex:1;max-width:280px">
+        <div class="search-box">
           <?= svgIcon('search') ?>
           <input type="text" name="q" placeholder="Search service ID, customer, circuit..." value="<?= e($filterSearch) ?>">
         </div>

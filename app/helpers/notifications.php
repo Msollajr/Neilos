@@ -12,7 +12,7 @@ function queueNotification(string $channel, string $recipient, string $subject, 
 
 function queueOrderNotification(int $orderId, string $event): void {
     $db = getDB();
-    $stmt = $db->prepare("SELECT o.*, p.name as partner_name, p.email as partner_email, p.phone as partner_phone FROM orders o JOIN partners p ON o.partner_id = p.id WHERE o.id = ?");
+    $stmt = $db->prepare("SELECT o.*, p.name as partner_name, (SELECT email FROM users WHERE partner_id = p.id LIMIT 1) as partner_email, (SELECT mobile FROM users WHERE partner_id = p.id LIMIT 1) as partner_phone FROM orders o JOIN partners p ON o.partner_id = p.id WHERE o.id = ?");
     $stmt->execute([$orderId]);
     $o = $stmt->fetch();
     if (!$o) return;

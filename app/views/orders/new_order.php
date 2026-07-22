@@ -201,7 +201,7 @@
             <span>Remote Hands NRC</span>
             <span class="commercial-value" id="rhNRCDisplay">$30.00</span>
           </div>
-          <div class="commercial-row divider">
+          <div class="commercial-row">
             <span>NRC Subtotal</span>
             <span class="commercial-value" id="nrcSubtotal">$60.00</span>
           </div>

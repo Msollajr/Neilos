@@ -1,6 +1,6 @@
 <div class="page-header">
   <div class="page-header-left">
-    <div class="page-title">Trouble Tickets</div>
+    <h1 class="page-title">Trouble Tickets</h1>
     <div class="page-subtitle"><?= $total ?> total &middot; <?= $openCount ?> open &middot; <?= $breachCount ?> breached SLA</div>
   </div>
   <div class="page-header-actions">
@@ -56,7 +56,7 @@
 </div>
 
 <!-- Filter Bar -->
-<div class="card" style="margin-bottom:20px">
+<div class="card mb-20">
   <div class="card-body" style="padding:16px 22px">
     <form method="GET" class="filter-bar">
       <input type="hidden" name="page" value="tickets">
@@ -88,22 +88,22 @@
   </div>
 </div>
 
-<!-- Tickets Table -->
+<!-- Enterprise Trouble Tickets Data Table -->
 <div class="card">
-  <div class="table-responsive">
-    <table class="data-table">
+  <div class="table-responsive ticket-table-wrap">
+    <table class="data-table ticket-table">
       <thead>
         <tr>
-          <th>Ticket #</th>
-          <th>Service ID</th>
-          <th>Customer</th>
-          <th>Fault</th>
-          <th>Severity</th>
-          <th>Queue</th>
-          <th>SLA</th>
-          <th>Status</th>
-          <th>Created</th>
-          <th class="text-right">Actions</th>
+          <th class="col-ticket-id">Ticket ID</th>
+          <th class="col-service-id">Service ID</th>
+          <th class="col-customer">Customer</th>
+          <th class="col-fault">Fault</th>
+          <th class="col-severity text-center">Severity</th>
+          <th class="col-queue">Queue</th>
+          <th class="col-sla">SLA</th>
+          <th class="col-status text-center">Status</th>
+          <th class="col-created">Created</th>
+          <th class="col-actions text-right">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -114,32 +114,56 @@
           $slaPct = calculateSLAPct($tk);
           $slaLabel = getSLAStatusLabel($slaPct);
         ?>
-        <tr>
-          <td><a href="<?= APP_URL ?>/?page=ticket_detail&id=<?= $tk['id'] ?>" class="font-600" style="color:var(--primary)"><?= e($tk['ticket_number']) ?></a></td>
-          <td class="font-sm"><?= e($tk['service_id']) ?></td>
-          <td class="font-sm"><?= e($tk['customer_name']) ?></td>
-          <td class="font-sm"><?= e($tk['fault_category']) ?></td>
-          <td>
+        <tr class="ticket-row">
+          <td class="col-ticket-id">
+            <a href="<?= APP_URL ?>/?page=ticket_detail&id=<?= $tk['id'] ?>" class="font-600" style="color:var(--accent)">
+              <?= e($tk['ticket_number']) ?>
+            </a>
+          </td>
+          <td class="col-service-id font-sm text-secondary">
+            <?= e($tk['service_id']) ?>
+          </td>
+          <td class="col-customer font-sm" title="<?= e($tk['customer_name']) ?>">
+            <?= e($tk['customer_name']) ?>
+          </td>
+          <td class="col-fault font-sm" title="<?= e($tk['fault_category']) ?>">
+            <?= e($tk['fault_category']) ?>
+          </td>
+          <td class="col-severity text-center">
             <span class="badge badge-<?= in_array($tk['severity'], ['Sev 1','Critical']) ? 'danger' : (in_array($tk['severity'], ['Sev 2','Standard']) ? 'warning' : 'secondary') ?>">
               <?= e($tk['severity']) ?>
             </span>
           </td>
-          <td class="font-sm"><?= e($tk['current_queue']) ?></td>
-          <td style="min-width:100px">
-            <div style="display:flex;align-items:center;gap:6px">
-              <span style="font-size:.72rem;font-weight:700;color:<?= $slaPct >= 100 ? 'var(--danger)' : ($slaPct >= 80 ? 'var(--warning)' : 'var(--success)') ?>">
-                <?= number_format($slaPct, 0) ?>%
-              </span>
-              <span class="badge <?= slaBadgeClass($slaLabel) ?>" style="font-size:.65rem"><?= e($slaLabel) ?></span>
-            </div>
-            <div class="sla-bar">
-              <div class="sla-bar-fill <?= $slaPct >= 100 ? 'breach' : ($slaPct >= 80 ? 'warning' : 'normal') ?>" style="width:<?= min(100, $slaPct) ?>%"></div>
+          <td class="col-queue font-sm text-secondary">
+            <?= e($tk['current_queue']) ?>
+          </td>
+          <td class="col-sla">
+            <div class="sla-container">
+              <div class="sla-header-row">
+                <span style="font-size:.72rem;font-weight:700;color:<?= $slaPct >= 100 ? 'var(--danger-text)' : ($slaPct >= 80 ? 'var(--warning-text)' : 'var(--success-text)') ?>">
+                  <?= number_format($slaPct, 0) ?>%
+                </span>
+                <span class="badge <?= slaBadgeClass($slaLabel) ?>" style="font-size:.65rem;height:18px;min-width:auto;padding:0 6px">
+                  <?= e($slaLabel) ?>
+                </span>
+              </div>
+              <div class="sla-bar-block">
+                <div class="sla-bar-fill <?= $slaPct >= 100 ? 'breach' : ($slaPct >= 80 ? 'warning' : 'normal') ?>" style="width:<?= min(100, $slaPct) ?>%"></div>
+              </div>
             </div>
           </td>
-          <td><span class="badge <?= ticketStatusClass($tk['status']) ?>"><?= e($tk['status']) ?></span></td>
-          <td class="text-muted font-sm"><?= fmtDate($tk['created_at']) ?></td>
-          <td class="text-right">
-            <a href="<?= APP_URL ?>/?page=ticket_detail&id=<?= $tk['id'] ?>" class="btn btn-sm btn-secondary" title="View"><?= svgIcon('eye') ?></a>
+          <td class="col-status text-center">
+            <span class="badge <?= ticketStatusClass($tk['status']) ?>">
+              <?= e($tk['status']) ?>
+            </span>
+          </td>
+          <td class="col-created text-muted font-sm">
+            <?= fmtDate($tk['created_at']) ?>
+          </td>
+          <td class="col-actions text-right">
+            <a href="<?= APP_URL ?>/?page=ticket_detail&id=<?= $tk['id'] ?>" class="btn btn-sm btn-secondary btn-icon" title="View Ticket Details">
+              <?= svgIcon('eye') ?>
+            </a>
           </td>
         </tr>
         <?php endforeach; ?>

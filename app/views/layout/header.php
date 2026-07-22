@@ -11,7 +11,10 @@ $currentPage = $_GET['page'] ?? 'dashboard';
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Neilos Partner Portal — Order Management & Service Delivery">
   <title><?= e($pageTitle ?? 'Dashboard') ?> — <?= APP_NAME ?></title>
-  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/portal.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/portal.css?v=<?= time() ?>">
   <link rel="icon" type="image/png" href="<?= APP_URL ?>/favicon.ico?v=2">
   <link rel="shortcut icon" href="<?= APP_URL ?>/favicon.ico?v=2">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
@@ -25,6 +28,21 @@ $currentPage = $_GET['page'] ?? 'dashboard';
 
 <!-- Sidebar -->
 <aside class="sidebar" id="sidebar">
+  <script>
+  (function() {
+    var sb = document.getElementById('sidebar');
+    if (!sb) return;
+    try {
+      if (localStorage.getItem('neilos_sidebar_collapsed') === '1' && window.innerWidth > 1024) {
+        sb.classList.add('collapsed');
+      }
+      var pos = sessionStorage.getItem('neilos_sidebar_scroll');
+      if (pos !== null) {
+        sb.scrollTop = parseInt(pos, 10);
+      }
+    } catch(e) {}
+  })();
+  </script>
   <div class="sidebar-logo">
     <img src="<?= APP_URL ?>/assets/img/logo.png?v=2" alt="Neilos" class="sidebar-logo-img">
   </div>
@@ -155,6 +173,12 @@ $currentPage = $_GET['page'] ?? 'dashboard';
         <span>User Management</span>
       </a>
     </div>
+    <div class="nav-item">
+      <a href="<?= APP_URL ?>/?page=activity_logs" class="nav-link <?= $currentPage === 'activity_logs' ? 'active' : '' ?>">
+        <?= svgIcon('activity') ?>
+        <span>Activity Logs</span>
+      </a>
+    </div>
     <?php endif; ?>
     <?php endif; ?>
   </nav>
@@ -174,11 +198,19 @@ $currentPage = $_GET['page'] ?? 'dashboard';
         <div class="sidebar-user-role"><?= e($user['role']) ?></div>
       </div>
     </a>
-    <a href="<?= APP_URL ?>/?page=logout" class="nav-link" style="margin-top:12px;color:rgba(255,255,255,.65);">
-      <?= svgIcon('logout') ?>
-      <span>Sign Out</span>
-    </a>
   </div>
+  <script>
+  (function() {
+    var sb = document.getElementById('sidebar');
+    if (!sb) return;
+    try {
+      var pos = sessionStorage.getItem('neilos_sidebar_scroll');
+      if (pos !== null) {
+        sb.scrollTop = parseInt(pos, 10);
+      }
+    } catch(e) {}
+  })();
+  </script>
 </aside>
 
 <!-- Main -->
@@ -191,6 +223,13 @@ $currentPage = $_GET['page'] ?? 'dashboard';
     <div class="topbar-title"><?= e($pageTitle ?? 'Dashboard') ?></div>
     <div class="topbar-actions">
       <span style="font-size:.8rem;color:var(--text-secondary)"><?= e($user['full_name']) ?></span>
+      <!-- Theme toggle -->
+      <button id="themeToggle" class="topbar-btn" title="Toggle light / dark mode" aria-label="Toggle theme">
+        <!-- Moon icon (shown in dark mode) -->
+        <svg class="theme-toggle-icon--dark" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+        <!-- Sun icon (shown in light mode) -->
+        <svg class="theme-toggle-icon--light" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
       <a href="<?= APP_URL ?>/?page=profile" class="topbar-btn" title="Profile" style="position:relative">
         <?php $tpPic = profilePictureUrl($user['profile_picture'] ?? ''); ?>
         <?php if ($tpPic): ?>

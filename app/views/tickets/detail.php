@@ -18,7 +18,7 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:22px;margin-bottom:24px">
+<div class="grid-dashboard" style="margin-bottom:24px">
   <!-- Main Info -->
   <div class="card">
     <div class="card-header">
@@ -108,7 +108,7 @@
       </div>
       <div class="card-body">
         <div style="text-align:center;padding:12px 0">
-          <div style="font-size:2.5rem;font-weight:800;color:<?= $ticket['sla_pct_consumed'] >= 100 ? 'var(--danger)' : ($ticket['sla_pct_consumed'] >= 80 ? 'var(--warning)' : 'var(--success)') ?>">
+          <div class="ticket-sla-pct" style="font-size:2.5rem;font-weight:800;color:<?= $ticket['sla_pct_consumed'] >= 100 ? 'var(--danger)' : ($ticket['sla_pct_consumed'] >= 80 ? 'var(--warning)' : 'var(--success)') ?>">
             <?= number_format($ticket['sla_pct_consumed'], 0) ?>%
           </div>
           <div class="sla-bar" style="margin:10px 0;height:12px">
@@ -149,6 +149,17 @@
     </div>
 
     <!-- Status Actions -->
+    <?php
+    $hasPartnerActions = $ticket['status'] === 'Resolved - Awaiting Customer Confirmation' && isPartnerUser();
+    $hasNocActions = !isPartnerUser() && (
+        $ticket['status'] === 'Open' ||
+        $ticket['status'] === 'Assigned' ||
+        $ticket['status'] === 'In Progress' ||
+        $ticket['status'] === 'Reopened' ||
+        !in_array($ticket['status'], ['Closed','Resolved - Awaiting Customer Confirmation'])
+    );
+    ?>
+    <?php if ($hasNocActions || $hasPartnerActions): ?>
     <div class="card">
       <div class="card-header">
         <div class="card-title">Actions</div>
@@ -203,11 +214,11 @@
           <?php endif; ?>
         <?php endif; ?>
 
-        <?php if ($ticket['status'] === 'Resolved - Awaiting Customer Confirmation' && isPartnerUser()): ?>
-        <div style="background:var(--info-light);border:1px solid #81D4FA;border-radius:var(--radius-sm);padding:16px;text-align:center">
-          <div style="font-size:.9rem;font-weight:700;color:var(--info);margin-bottom:12px">Is the issue resolved?</div>
-          <div style="display:flex;gap:10px">
-            <form method="POST" action="<?= APP_URL ?>/?page=tickets&action=customer_action" style="flex:1">
+        <?php if ($hasPartnerActions): ?>
+        <div class="partner-confirm-box">
+          <div class="partner-confirm-title">Is the issue resolved?</div>
+          <div class="partner-confirm-actions">
+            <form method="POST" action="<?= APP_URL ?>/?page=tickets&action=customer_action">
               <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
               <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
               <input type="hidden" name="customer_action" value="confirm">
@@ -215,7 +226,7 @@
                 <?= svgIcon('check') ?> Yes, Resolved
               </button>
             </form>
-            <button class="btn btn-danger" data-modal-open="reopenModal" style="flex:1">
+            <button class="btn btn-danger w-100" data-modal-open="reopenModal">
               <?= svgIcon('alert') ?> Reopen
             </button>
           </div>
@@ -223,6 +234,7 @@
         <?php endif; ?>
       </div>
     </div>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -278,9 +290,9 @@
       <div style="display:flex;flex-direction:column;gap:14px">
         <?php foreach ($notes as $n): ?>
         <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="note-header">
             <span class="font-600 font-sm"><?= e($n['full_name'] ?: 'System') ?></span>
-            <div style="display:flex;gap:8px;align-items:center">
+            <div class="note-meta">
               <span class="badge badge-<?= $n['note_type'] === 'Partner Visible' ? 'info' : 'secondary' ?>"><?= e($n['note_type']) ?></span>
               <span class="text-muted font-xs"><?= fmtDateTime($n['created_at']) ?></span>
             </div>

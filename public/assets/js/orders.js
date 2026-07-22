@@ -146,6 +146,3 @@ function updateDIA(val) {
   const mrc = parseFloat(val) || 0;
   updateMRC(mrc);
 }
-
-// Hide DIA MRC row when service type changes away from DIA
-function hideDiaMrc() { hide('diaMrcRow'); }

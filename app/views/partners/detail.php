@@ -10,7 +10,7 @@
 </div>
 
 <!-- Stats row -->
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+<div class="stats-grid mb-24">
   <div class="card">
     <div class="card-body" style="text-align:center;padding:24px">
       <div style="font-size:2rem;font-weight:700;color:var(--primary)"><?= $userCount ?></div>
@@ -31,7 +31,7 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px">
+<div class="grid-2col mb-24">
   <div class="card">
     <div class="card-header"><div class="card-title">General Information</div></div>
     <div class="card-body">

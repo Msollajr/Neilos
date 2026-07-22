@@ -7,6 +7,9 @@ $action = $_GET['page'] ?? 'login';
 
 // --- LOGOUT ---
 if ($action === 'logout') {
+    if (!empty($_SESSION['user_id'])) {
+        auditLog('User logged out', 'auth', $_SESSION['user_id']);
+    }
     logoutUser();
     header('Location: ' . APP_URL . '/?page=login');
     exit;

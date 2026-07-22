@@ -7,6 +7,16 @@
 </div>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px">
+  <!-- Financial & Billing Commercials Report -->
+  <div class="card">
+    <div class="card-body" style="padding:24px;text-align:center">
+      <div style="font-size:2.5rem;margin-bottom:12px;color:var(--accent)"><?= svgIcon('chart', 36) ?></div>
+      <div class="card-title" style="margin-bottom:4px">Financial &amp; Billing Report</div>
+      <p class="text-secondary font-sm" style="margin-bottom:16px">Monthly Recurring Revenue (MRC), Non-Recurring Charges (NRC), VAT, discounts &amp; currency metrics.</p>
+      <a href="?page=reports&action=financial" class="btn btn-primary"><?= svgIcon('download') ?> Download CSV</a>
+    </div>
+  </div>
+
   <!-- Orders Report -->
   <div class="card">
     <div class="card-body" style="padding:24px;text-align:center">
