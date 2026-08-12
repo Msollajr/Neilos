@@ -3,9 +3,6 @@
     <h1 class="page-title">Partner Management</h1>
     <div class="page-subtitle"><?= $total ?> partner(s) found</div>
   </div>
-  <div class="page-header-actions">
-    <a href="<?= APP_URL ?>/?page=partners&action=create" class="btn btn-primary"><?= svgIcon('plus') ?> New Partner</a>
-  </div>
 </div>
 
 <div class="card">
@@ -16,6 +13,7 @@
           <th>Name</th>
           <th>Trading Name</th>
           <th>Type</th>
+          <th>Assigned KAM</th>
           <th>Status</th>
           <th>City / Region</th>
           <th>Country</th>
@@ -25,13 +23,16 @@
       </thead>
       <tbody>
         <?php if (empty($partners)): ?>
-        <tr><td colspan="8"><div class="empty-state"><?= svgIcon('building', 32) ?><div class="empty-state-title">No partners found</div><div class="empty-state-text">Click "New Partner" to add the first partner.</div></div></td></tr>
+        <tr><td colspan="9"><div class="empty-state"><?= svgIcon('building', 32) ?><div class="empty-state-title">No partners found</div><div class="empty-state-text">Click "New Partner" to add the first partner.</div></div></td></tr>
         <?php else: ?>
         <?php foreach ($partners as $p): ?>
         <tr>
           <td><a href="<?= APP_URL ?>/?page=partners&action=detail&id=<?= $p['id'] ?>" class="font-600" style="color:var(--primary)"><?= e($p['name']) ?></a></td>
           <td class="font-sm"><?= e($p['trading_name'] ?: '—') ?></td>
           <td><span class="badge badge-primary"><?= e($p['partner_type']) ?></span></td>
+          <td class="font-sm font-600"><?= e($p['assigned_kam_name'] ?? '—') ?></td>
+
+
           <td>
             <?php if ($p['status'] === 'Active'): ?>
             <span class="badge badge-success">Active</span>
@@ -48,6 +49,13 @@
             <div class="actions">
               <a href="<?= APP_URL ?>/?page=partners&action=detail&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm btn-icon" title="View"><?= svgIcon('eye') ?></a>
               <a href="<?= APP_URL ?>/?page=partners&action=edit&id=<?= $p['id'] ?>" class="btn btn-secondary btn-sm btn-icon" title="Edit"><?= svgIcon('edit') ?></a>
+              <?php if (isAdmin() || hasRole('Management')): ?>
+              <form method="POST" action="<?= APP_URL ?>/?page=partners&action=delete" style="display:inline" data-confirm="Permanently delete partner <?= e($p['name']) ?>?">
+                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                <input type="hidden" name="id" value="<?= $p['id'] ?>">
+                <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete Partner"><?= svgIcon('trash') ?></button>
+              </form>
+              <?php endif; ?>
             </div>
           </td>
         </tr>

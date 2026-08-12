@@ -1,32 +1,24 @@
 // ============================================================
 // Neilos Portal — Order Form JS
-// FTTx, DIA, L2, Remote Hands dynamic pricing
+// FTTx, Layer 2 (last mile), BIA, Remote Hands dynamic pricing
 // ============================================================
 
-const USD_TZS = 2585;
-const VAT     = 0.18;
-const BASE_NRC = 60;
-const RH_NRC   = 30;
+const VAT = 0.18;
 
-const fttxPrices = {
-  '20 Mbps': 10.40, '30 Mbps': 12.48, '40 Mbps': 13.52,
-  '50 Mbps': 16.22, '60 Mbps': 19.47, '80 Mbps': 23.36, '100 Mbps': 28.04
-};
-
-const l2Prices = {
-  '1 Gbps': 3000, '1.5 Gbps': 4000, '2 Gbps': 5500, '3 Gbps': 8000,
-  '4 Gbps': 10500, '5 Gbps': 13000, '6 Gbps': 15500, '7 Gbps': 18000,
-  '8 Gbps': 21000, '9 Gbps': 24000, '10 Gbps': 27000
-};
-
-const termDiscounts = {
-  'Month to Month': 0, '12 Months': 5, '24 Months': 10, '36 Months': 15
+const fttxMrcPrices = {
+  'FTTx-40': 27500,
+  'FTTx-50': 33000,
+  'FTTx-60': 39500,
+  'FTTx-70': 46000,
+  'FTTx-80': 52500,
+  'FTTx-90': 59000,
+  'FTTx-100': 65500
 };
 
 let currentServiceType = '';
 let currentBaseMRC     = 0;
-let currentMRCCurr     = 'TZS';
-let currentDiscPct     = 0;
+let currentBaseNRC     = 0;
+let currentRHNRC       = 0;
 
 function fmt(n, curr = '') {
   const s = Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -39,110 +31,169 @@ function hide(id) { const el = document.getElementById(id); if (el) el.style.dis
 
 function handleServiceType(type) {
   currentServiceType = type;
-  currentDiscPct = 0;
 
   // Reset all optional rows
-  hide('fttxPackageRow'); hide('diaRow'); hide('diaMrcRow'); hide('nniRow'); hide('l2CapRow');
-  hide('contractTermRow'); hide('remoteHandsRow');
+  hide('fttxPackageRow'); hide('diaRow'); hide('nniRow'); hide('l2CapRow');
+  hide('contractTermRow'); hide('remoteHandsRow'); hide('otherProductNoteRow');
 
-  const isRemoteHands = type === 'Remote Hands Only';
+  currentBaseMRC = 0;
+  currentBaseNRC = 0;
+  currentRHNRC   = 0;
 
   if (type === 'FTTH' || type === 'FTTB') {
     show('fttxPackageRow');
-    show('remoteHandsRow');
-    currentMRCCurr = 'TZS';
-  } else if (type === 'DIA') {
-    show('diaRow');
-    show('diaMrcRow');
     show('contractTermRow');
     show('remoteHandsRow');
-    currentMRCCurr = 'USD';
-  } else if (type === 'Dedicated Layer 2') {
+    currentBaseNRC = 140000;
+  } else if (type === 'Layer 2 ( last mile)' || type === 'Dedicated Layer 2') {
     show('nniRow');
     show('l2CapRow');
     show('contractTermRow');
     show('remoteHandsRow');
-    currentMRCCurr = 'USD';
+    currentBaseNRC = 250000;
+  } else if (type === 'Remote Hands Only' || type === 'Remote Hands') {
+    show('contractTermRow');
+    currentBaseNRC = 80000;
+  } else if (type === 'BIA (Broadband Internet Access)' || type === 'DIA') {
+    show('diaRow');
+    show('contractTermRow');
+    show('otherProductNoteRow');
+    currentBaseNRC = 0; // Prices inserted by BSA and KAM
+  } else if (type) {
+    show('contractTermRow');
+    show('otherProductNoteRow');
+    currentBaseNRC = 0; // Prices inserted by BSA and KAM
   }
-  // Remote Hands: only NRC
 
-  setHid('hidMRCCurr', currentMRCCurr);
-  updateNRC(isRemoteHands ? RH_NRC : BASE_NRC, 0);
+  const rhSelect = document.querySelector('[name="remote_hands_required"]');
+  const rhVal = rhSelect ? rhSelect.value : '0';
+  const rhNRC = (rhVal === '1' || rhVal === 1) ? 80000 : 0;
+
+  setHid('hidMRCCurr', 'TZS');
+  updateNRC(currentBaseNRC, rhNRC);
   updateMRC(0);
-  show('commercialSection');
+  if (type) {
+    show('commercialSection');
+  } else {
+    hide('commercialSection');
+  }
 }
 
 function updateNRC(base, rhNRC) {
+  currentBaseNRC = base;
+  currentRHNRC   = rhNRC;
   const sub  = base + rhNRC;
   const vat  = sub * VAT;
   const tot  = sub + vat;
-  setTxt('baseNRCDisplay', `$${fmt(base)}`);
-  setTxt('nrcSubtotal',    `$${fmt(sub)}`);
-  setTxt('vatNRC',         `$${fmt(vat)}`);
-  setTxt('totalNRC',       `$${fmt(tot)}`);
+
+  setTxt('baseNRCDisplay', base > 0 ? `TZS ${fmt(base)}` : 'Inserted by BSA');
+  setTxt('nrcSubtotal',    sub > 0 ? `TZS ${fmt(sub)}` : (rhNRC > 0 ? `TZS ${fmt(rhNRC)}` : 'Inserted by BSA'));
+  setTxt('vatNRC',         sub > 0 ? `TZS ${fmt(vat)}` : (rhNRC > 0 ? `TZS ${fmt(vat)}` : '—'));
+  setTxt('totalNRC',       sub > 0 ? `TZS ${fmt(tot)}` : (rhNRC > 0 ? `TZS ${fmt(tot)}` : 'Inserted by BSA'));
+
   setHid('hidBaseNRC', base.toFixed(2));
   setHid('hidRHNRC', rhNRC.toFixed(2));
   setHid('hidNRCSub', sub.toFixed(2));
   setHid('hidVatNRC', vat.toFixed(2));
   setHid('hidTotalNRC', tot.toFixed(2));
-  if (rhNRC > 0) { setTxt('rhNRCDisplay', `$${fmt(rhNRC)}`); show('remoteHandsNRCRow'); }
+
+  if (rhNRC > 0) { setTxt('rhNRCDisplay', `TZS ${fmt(rhNRC)}`); show('remoteHandsNRCRow'); }
   else           { hide('remoteHandsNRCRow'); }
 }
 
 function updateMRC(baseMRC) {
   currentBaseMRC = baseMRC;
-  const curr = currentMRCCurr;
-  const label = curr === 'TZS' ? 'Base MRC (TZS)' : 'Base MRC (USD)';
-  setTxt('mrcLabel', label);
+  const vatMRC  = baseMRC * VAT;
+  const totMRC  = baseMRC + vatMRC;
 
-  const discAmt = baseMRC * (currentDiscPct / 100);
-  const after   = baseMRC - discAmt;
-  const vatMRC  = after * VAT;
-  const totMRC  = after + vatMRC;
-
-  setTxt('baseMRCDisplay', baseMRC > 0 ? `${curr} ${fmt(baseMRC)}` : '—');
-  setTxt('discountDisplay', discAmt > 0 ? `-${curr} ${fmt(discAmt)}` : '—');
-  setTxt('vatMRC',         baseMRC > 0 ? `${curr} ${fmt(vatMRC)}` : '—');
-  setTxt('totalMRC',       baseMRC > 0 ? `${curr} ${fmt(totMRC)}` : '—');
+  setTxt('baseMRCDisplay', baseMRC > 0 ? `TZS ${fmt(baseMRC)}` : 'Inserted by KAM');
+  setTxt('vatMRC',         baseMRC > 0 ? `TZS ${fmt(vatMRC)}` : '—');
+  setTxt('totalMRC',       baseMRC > 0 ? `TZS ${fmt(totMRC)}` : 'Inserted by KAM');
 
   setHid('hidBaseMRC', baseMRC.toFixed(2));
-  setHid('hidDiscPct', currentDiscPct.toFixed(2));
-  setHid('hidDiscAmt', discAmt.toFixed(2));
+  setHid('hidDiscPct', '0.00');
+  setHid('hidDiscAmt', '0.00');
   setHid('hidVatMRC',  vatMRC.toFixed(2));
   setHid('hidTotalMRC',totMRC.toFixed(2));
-
-  const discPctEl = document.getElementById('discPct');
-  if (discPctEl) discPctEl.textContent = currentDiscPct;
-
-  if (currentDiscPct > 0 && baseMRC > 0) show('discountRow');
-  else hide('discountRow');
+  hide('discountRow');
 }
 
 function updateFTTxPrice(pkg) {
-  const usd   = fttxPrices[pkg] || 0;
-  const tzsMRC = usd * USD_TZS;
-  updateMRC(tzsMRC);
+  const mrc = fttxMrcPrices[pkg] || 0;
+  updateMRC(mrc);
 }
 
 function updateL2Price(cap) {
-  const baseMRC = l2Prices[cap] || 0;
-  updateMRC(baseMRC);
-}
-
-function updateDiscount(term) {
-  const discEl = document.getElementById('discPct');
-  currentDiscPct = termDiscounts[term] || 0;
-  updateMRC(currentBaseMRC);
+  let val = 0;
+  if (/Gbps|Gb/i.test(cap)) {
+    val = (parseFloat(cap) || 0) * 1000;
+  } else if (/Mbps|Mb/i.test(cap)) {
+    val = parseFloat(cap) || 0;
+  } else {
+    val = parseFloat(cap) || 0;
+  }
+  const mrc = (val <= 100 && val > 0) ? 110000 : (val > 100 ? 220000 : 0);
+  updateMRC(mrc);
 }
 
 function updateRemoteHands(val) {
-  const isRH    = currentServiceType === 'Remote Hands Only';
-  const baseNRC = isRH ? RH_NRC : BASE_NRC;
-  const rhNRC   = (!isRH && val === '1') ? RH_NRC : 0;
-  updateNRC(baseNRC, rhNRC);
+  const rhNRC = (val === '1' || val === 1) ? 80000 : 0;
+  updateNRC(currentBaseNRC, rhNRC);
 }
 
-function updateDIA(val) {
-  const mrc = parseFloat(val) || 0;
-  updateMRC(mrc);
+function renderSelectedFiles(input) {
+  const container = document.getElementById('filePreviewList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!input || !input.files || input.files.length === 0) return;
+
+  Array.from(input.files).forEach((file) => {
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;justify-space-between;background:var(--surface-hover);border:1px solid var(--border);padding:8px 14px;border-radius:6px;font-size:.875rem;color:var(--text-primary);';
+    
+    const sizeStr = (file.size >= 1048576) ? (file.size / 1048576).toFixed(1) + ' MB' : Math.round(file.size / 1024) + ' KB';
+    
+    item.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.1rem">📄</span>
+        <strong>${file.name}</strong>
+        <span style="color:var(--text-muted);font-size:.75rem">(${sizeStr})</span>
+      </div>
+      <span style="color:var(--success);font-weight:600;font-size:.75rem;margin-left:auto">Ready to upload</span>
+    `;
+    container.appendChild(item);
+  });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  if (!dropZone || !fileInput) return;
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.style.borderColor = 'var(--accent)';
+      dropZone.style.background = 'rgba(59, 130, 246, 0.08)';
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.style.borderColor = '';
+      dropZone.style.background = '';
+    }, false);
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length > 0) {
+      fileInput.files = dt.files;
+      renderSelectedFiles(fileInput);
+    }
+  }, false);
+});

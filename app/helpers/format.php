@@ -25,39 +25,91 @@ function formatBytes(int $bytes): string {
  */
 function orderStatusClass(string $status): string {
     return match($status) {
-        'Submitted'                      => 'badge-info',
-        'Feasibility Review'             => 'badge-warning',
-        'Awaiting BSA Approval'          => 'badge-warning',
-        'Awaiting Commercial Approval'   => 'badge-warning',
-        'Awaiting Management Approval'   => 'badge-warning',
-        'Approved'                       => 'badge-primary',
-        'Provisioning'                   => 'badge-primary',
-        'Installation'                   => 'badge-primary',
-        'Testing'                        => 'badge-primary',
-        'UAT'                            => 'badge-info',
-        'UAT - Awaiting Confirmation'    => 'badge-warning',
-        'Activated'                      => 'badge-success',
-        'Billing Triggered'              => 'badge-success',
-        'Closed'                         => 'badge-secondary',
-        'Cancelled'                      => 'badge-danger',
-        default                          => 'badge-secondary',
+        // v1.0 lifecycle
+        'Feasibility Review'          => 'badge-warning',
+        'Await Commercial Approval'   => 'badge-warning',
+        'Management Approval'         => 'badge-danger',
+        'Pending SOF'                 => 'badge-info',
+        'SOF Review'                  => 'badge-primary',
+        'Installation'                => 'badge-primary',
+        'Testing'                     => 'badge-primary',
+        'UAT'                         => 'badge-info',
+        'Closed'                      => 'badge-success',
+        'Not Feasible'                => 'badge-danger',
+        'Cancelled'                   => 'badge-danger',
+        // Legacy statuses (kept for data continuity)
+        'Submitted'                   => 'badge-warning',
+        'Awaiting BSA Approval'       => 'badge-warning',
+        'Awaiting Commercial Approval'=> 'badge-warning',
+        'Awaiting Management Approval'=> 'badge-danger',
+        'Approved'                    => 'badge-primary',
+        'Provisioning'                => 'badge-primary',
+        'UAT - Awaiting Confirmation' => 'badge-info',
+        'Activated'                   => 'badge-success',
+        'Billing Triggered'           => 'badge-success',
+        default                       => 'badge-secondary',
     };
 }
 
 /**
- * Return a CSS class for ticket status badge.
+ * Return a human-readable label and icon class for order status.
  */
-function ticketStatusClass(string $status): string {
+function orderStatusIcon(string $status): string {
     return match($status) {
-        'Open'                                     => 'badge-danger',
-        'Assigned'                                 => 'badge-warning',
-        'In Progress'                              => 'badge-primary',
-        'Resolved - Awaiting Customer Confirmation'=> 'badge-info',
-        'Closed'                                   => 'badge-success',
-        'Reopened'                                 => 'badge-danger',
-        default                                    => 'badge-secondary',
+        'Feasibility Review'         => 'search',
+        'Await Commercial Approval'  => 'dollar',
+        'Management Approval'        => 'users',
+        'Pending SOF'                => 'document',
+        'SOF Review'                 => 'edit',
+        'Installation'               => 'project',
+        'Testing'                    => 'check',
+        'UAT'                        => 'check',
+        'Closed'                     => 'server',
+        'Not Feasible'               => 'x',
+        'Cancelled'                  => 'x',
+        default                      => 'info',
     };
 }
+
+/**
+ * Generate a Feasibility Request order number.
+ */
+function generateOrderNumber(): string {
+    $ymd = date('ymd');
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT order_number FROM orders WHERE order_number LIKE ? ORDER BY id DESC LIMIT 100");
+        $stmt->execute(["FR-{$ymd}-%"]);
+        $existing = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $maxSeq = 0;
+        foreach ($existing as $ordNum) {
+            $parts = explode('-', $ordNum);
+            $seqPart = end($parts);
+            if (is_numeric($seqPart)) {
+                $maxSeq = max($maxSeq, (int)$seqPart);
+            }
+        }
+
+        $nextSeq = $maxSeq + 1;
+        
+        do {
+            $candidate = "FR-{$ymd}-" . str_pad($nextSeq, 3, '0', STR_PAD_LEFT);
+            $checkStmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE order_number = ?");
+            $checkStmt->execute([$candidate]);
+            $exists = (int)$checkStmt->fetchColumn();
+            if ($exists > 0) {
+                $nextSeq++;
+            }
+        } while ($exists > 0);
+
+        return $candidate;
+    } catch (Exception $e) {
+        return 'FR-' . $ymd . '-' . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
+    }
+}
+
+
 
 /**
  * Relative time string, e.g. "2 hours ago".
@@ -167,41 +219,102 @@ function uploadFile(array $file, string $subdir = 'general'): array {
 }
 
 /**
- * Compute FTTx pricing.
+ * Compute FTTx pricing (MRC in TZS, Standard NRC in TZS).
  */
 function getFTTxPricing(string $package): array {
-    $prices = [
-        '20 Mbps'  => 10.40,
-        '30 Mbps'  => 12.48,
-        '40 Mbps'  => 13.52,
-        '50 Mbps'  => 16.22,
-        '60 Mbps'  => 19.47,
-        '80 Mbps'  => 23.36,
-        '100 Mbps' => 28.04,
+    $packages = [
+        'FTTx-40'  => ['mrc' => 27500.00, 'nrc' => 140000.00],
+        'FTTx-50'  => ['mrc' => 33000.00, 'nrc' => 140000.00],
+        'FTTx-60'  => ['mrc' => 39500.00, 'nrc' => 140000.00],
+        'FTTx-70'  => ['mrc' => 46000.00, 'nrc' => 140000.00],
+        'FTTx-80'  => ['mrc' => 52500.00, 'nrc' => 140000.00],
+        'FTTx-90'  => ['mrc' => 59000.00, 'nrc' => 140000.00],
+        'FTTx-100' => ['mrc' => 65500.00, 'nrc' => 140000.00],
     ];
-    $usdMrr = $prices[$package] ?? 0;
-    $tzsMrc = round($usdMrr * USD_TZS_RATE, 2);
-    return ['usd_mrr' => $usdMrr, 'tzs_mrc' => $tzsMrc];
+    if (isset($packages[$package])) {
+        return $packages[$package];
+    }
+    return ['mrc' => 0.00, 'nrc' => 140000.00];
 }
 
 /**
- * Compute Dedicated Layer 2 pricing.
+ * Compute Layer 2 ( last mile) pricing.
+ * Capacity <= 100Mbps -> 110,000 TZS MRC, >= 101Mbps -> 220,000 TZS MRC.
+ * Standard NRR = 250,000 TZS, Remote Hands NRR = 80,000 TZS.
  */
-function getL2Pricing(string $capacity): float {
-    $prices = [
-        '1 Gbps'  => 3000.00,
-        '1.5 Gbps'=> 4000.00,
-        '2 Gbps'  => 5500.00,
-        '3 Gbps'  => 8000.00,
-        '4 Gbps'  => 10500.00,
-        '5 Gbps'  => 13000.00,
-        '6 Gbps'  => 15500.00,
-        '7 Gbps'  => 18000.00,
-        '8 Gbps'  => 21000.00,
-        '9 Gbps'  => 24000.00,
-        '10 Gbps' => 27000.00,
+function getL2Pricing(string $capacity): array {
+    $val = 0;
+    if (preg_match('/(\d+)\s*(Gbps|Gb)/i', $capacity, $m)) {
+        $val = (float)$m[1] * 1000;
+    } elseif (preg_match('/(\d+)\s*(Mbps|Mb)/i', $capacity, $m)) {
+        $val = (float)$m[1];
+    } elseif (is_numeric($capacity)) {
+        $val = (float)$capacity;
+    }
+
+    $mrc = ($val > 0 && $val <= 100) ? 110000.00 : ($val > 100 ? 220000.00 : 0.00);
+    return [
+        'mrc' => $mrc,
+        'nrc' => 250000.00,
+        'remote_hands_nrc' => 80000.00
     ];
-    return $prices[$capacity] ?? 0.00;
+}
+/**
+ * Canonical Commercial Summary for an order (Single Source of Truth across Neilos Portal).
+ * Matches order detail Commercial Summary logic exactly.
+ */
+function getOrderCommercialSummary(array $order): array {
+    // 1. NRC Calculation
+    $hasRevNrc = ($order['revised_nrc'] !== null && $order['revised_nrc'] !== '');
+    $stdNrc    = (float)($order['standard_nrc'] ?? $order['base_nrc_usd'] ?? 0);
+    $revNrc    = $hasRevNrc ? (float)$order['revised_nrc'] : 0.00;
+    
+    // Active Base NRC is Revised NRC if present, otherwise Standard NRC
+    $baseNrc   = $hasRevNrc ? $revNrc : $stdNrc;
+    $rhNrc     = (float)($order['remote_hands_nrc_usd'] ?? 0);
+    
+    $nrcSubtotal = round($baseNrc + $rhNrc, 2);
+    $vatNrc      = round($nrcSubtotal * 0.18, 2);
+    $totalNrc    = round($nrcSubtotal + $vatNrc, 2);
+
+    // 2. MRC Calculation
+    $hasMgmtPrice = ($order['management_approved_price'] !== null && $order['management_approved_price'] !== '');
+    $hasRevMrc    = ($order['revised_mrc'] !== null && $order['revised_mrc'] !== '');
+    $stdMrc       = (float)($order['standard_mrc'] ?? $order['base_mrc'] ?? 0);
+    $revMrc       = $hasRevMrc ? (float)$order['revised_mrc'] : 0.00;
+    $mgmtMrc      = $hasMgmtPrice ? (float)$order['management_approved_price'] : 0.00;
+
+    // Effective MRC value: Management Approved Price > Revised MRC > Standard MRC
+    $mrcVal   = $hasMgmtPrice ? $mgmtMrc : ($hasRevMrc ? $revMrc : $stdMrc);
+    $vatMrc   = round($mrcVal * 0.18, 2);
+    $totalMrc = round($mrcVal + $vatMrc, 2);
+
+    // Total Combined Revenue & VAT
+    $totalRevenue = round($totalNrc + $totalMrc, 2);
+    $totalVat     = round($vatNrc + $vatMrc, 2);
+
+    return [
+        'has_rev_nrc'   => $hasRevNrc,
+        'std_nrc'       => $stdNrc,
+        'rev_nrc'       => $revNrc,
+        'base_nrc'      => $baseNrc,
+        'rh_nrc'        => $rhNrc,
+        'nrc_subtotal'  => $nrcSubtotal,
+        'vat_nrc'       => $vatNrc,
+        'total_nrc'     => $totalNrc,     // Total NRC Incl. VAT
+
+        'has_rev_mrc'   => $hasRevMrc,
+        'has_mgmt_mrc'  => $hasMgmtPrice,
+        'std_mrc'       => $stdMrc,
+        'rev_mrc'       => $revMrc,
+        'mgmt_mrc'      => $mgmtMrc,
+        'mrc_val'       => $mrcVal,       // Effective Base MRC
+        'vat_mrc'       => $vatMrc,
+        'total_mrc'     => $totalMrc,     // Effective Total MRC Incl. VAT
+
+        'vat_total'     => $totalVat,
+        'total_revenue' => $totalRevenue  // Total NRC Incl. VAT + Total MRC Incl. VAT
+    ];
 }
 
 /**
@@ -209,36 +322,53 @@ function getL2Pricing(string $capacity): float {
  */
 function calculateCommercials(array $data): array {
     $serviceType = $data['service_type'] ?? '';
-    $isRemoteHands = ($serviceType === 'Remote Hands Only');
+    $vatRate     = VAT_RATE;
 
-    $baseNRC = $isRemoteHands ? REMOTE_HANDS_NRC : DEFAULT_BASE_NRC;
-    $remoteHandsNRC = (!$isRemoteHands && !empty($data['remote_hands_required'])) ? REMOTE_HANDS_NRC : 0;
-    $nrcSubtotal = $baseNRC + $remoteHandsNRC;
-    $vatNRC = round($nrcSubtotal * VAT_RATE, 2);
-    $totalNRC = round($nrcSubtotal + $vatNRC, 2);
+    $baseNRC        = 0.00;
+    $remoteHandsNRC = 0.00;
+    $baseMRC        = 0.00;
+    $mrcCurrency    = 'TZS';
 
-    $baseMRC = 0;
-    $mrcCurrency = 'TZS';
-
-    if (!$isRemoteHands) {
-        if (in_array($serviceType, ['FTTH', 'FTTB'])) {
-            $pricing = getFTTxPricing($data['fttx_package'] ?? '');
-            $baseMRC = $pricing['tzs_mrc'];
-            $mrcCurrency = 'TZS';
-        } elseif ($serviceType === 'DIA') {
-            $baseMRC = (float)($data['dia_mrc'] ?? 0);
-            $mrcCurrency = 'USD';
-        } elseif ($serviceType === 'Dedicated Layer 2') {
-            $baseMRC = getL2Pricing($data['aggregate_capacity'] ?? '');
-            $mrcCurrency = 'USD';
-        }
+    if (in_array($serviceType, ['FTTH', 'FTTB'])) {
+        $pricing = getFTTxPricing($data['fttx_package'] ?? '');
+        $baseMRC = $pricing['mrc'];
+        $baseNRC = $pricing['nrc'];
+        $mrcCurrency = 'TZS';
+    } elseif ($serviceType === 'Layer 2 ( last mile)' || $serviceType === 'Dedicated Layer 2' || str_contains($serviceType, 'Layer 2')) {
+        $pricing = getL2Pricing($data['aggregate_capacity'] ?? $data['bandwidth'] ?? '');
+        $baseMRC = $pricing['mrc'];
+        $baseNRC = $pricing['nrc'];
+        $mrcCurrency = 'TZS';
+    } elseif ($serviceType === 'Remote Hands Only' || $serviceType === 'Remote Hands') {
+        $baseNRC = 80000.00;
+        $baseMRC = 0.00;
+        $mrcCurrency = 'TZS';
+    } else {
+        // BIA (Broadband Internet Access) or other products:
+        // Prices inserted by BSA (NRC) and KAM (MRC)
+        $baseNRC = 0.00;
+        $baseMRC = 0.00;
+        $mrcCurrency = 'TZS';
     }
 
-    $discountPct = (float)($data['discount_pct'] ?? 0);
-    $discountAmt = round($baseMRC * ($discountPct / 100), 2);
+    // Add Remote Hands NRC (80,000 TZS) if requested
+    if (!empty($data['remote_hands_required']) && ($data['remote_hands_required'] == '1' || strtolower($data['remote_hands_required']) === 'yes')) {
+        $remoteHandsNRC = 80000.00;
+    } elseif (!empty($data['remote_hands_nrc_usd']) && (float)$data['remote_hands_nrc_usd'] > 0) {
+        $remoteHandsNRC = (float)$data['remote_hands_nrc_usd'];
+    }
+
+    // Term discount logic removed per specification requirement (KAM applies custom discount / revised pricing)
+    $discountPct    = 0.00;
+    $discountAmt    = 0.00;
+
+    $nrcSubtotal = $baseNRC + $remoteHandsNRC;
+    $vatNRC      = round($nrcSubtotal * $vatRate, 2);
+    $totalNRC    = round($nrcSubtotal + $vatNRC, 2);
+
     $mrcAfterDiscount = $baseMRC - $discountAmt;
-    $vatMRC = round($mrcAfterDiscount * VAT_RATE, 2);
-    $totalMRC = round($mrcAfterDiscount + $vatMRC, 2);
+    $vatMRC         = round($mrcAfterDiscount * $vatRate, 2);
+    $totalMRC       = round($mrcAfterDiscount + $vatMRC, 2);
 
     return [
         'base_nrc_usd'        => $baseNRC,
@@ -262,3 +392,77 @@ function profilePictureUrl(?string $path): string {
     }
     return '';
 }
+
+/**
+ * Safely renders system notification messages.
+ * Parses and strips raw/escaped HTML tags so literal strings like <strong> are never displayed as plaintext.
+ * Allows safe inline formatting tags (strong, b, em, i, span, br) to render as rich-text HTML elements.
+ */
+function renderNotificationMessage(string $message): string {
+    if (empty($message)) return '';
+
+    // If message contains htmlspecialchars-encoded tags (&lt;strong&gt;), decode them
+    $decoded = htmlspecialchars_decode($message, ENT_QUOTES);
+
+    // Strip unsafe tags (script, iframe, style, etc.) while keeping safe formatting tags
+    $safe = strip_tags($decoded, '<strong><b><em><i><span><br>');
+
+    return $safe;
+}
+
+/**
+ * Render standard View | Download | (Replace) | (Delete) file action buttons system-wide.
+ */
+function renderFileActions(array $options): string {
+    $fileUrl     = $options['file_url'] ?? '';
+    $fileName    = $options['file_name'] ?? 'File';
+    $downloadUrl = $options['download_url'] ?? (APP_URL . '/?page=download&file=' . urlencode($fileUrl));
+    $metadata    = $options['metadata'] ?? [];
+    $canEdit     = !empty($options['can_edit']);
+    $replaceUrl  = $options['replace_url'] ?? '';
+    $deleteUrl   = $options['delete_url'] ?? '';
+    $deleteId    = $options['delete_id'] ?? 0;
+    $csrfToken   = csrfToken();
+
+    $jsonMeta = htmlspecialchars(json_encode(array_merge([
+        'file_name' => $fileName
+    ], $metadata)), ENT_QUOTES, 'UTF-8');
+
+    $fullFileUrl = (strpos($fileUrl, 'http') === 0) ? $fileUrl : (APP_URL . '/' . ltrim($fileUrl, '/\\'));
+
+    $html = '<div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">';
+
+    // 1. View Button (Opens in-app preview modal)
+    $html .= '<button type="button" class="btn btn-xs btn-outline-primary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation(); viewSystemFile(\'' . e($fullFileUrl) . '\', \'' . e($fileName) . '\', \'' . e($downloadUrl) . '\', ' . $jsonMeta . ')" title="View in-app document preview">';
+    $html .= svgIcon('eye', 13) . ' View';
+    $html .= '</button>';
+
+    // 2. Download Button (Direct forced attachment download to local computer)
+    $html .= '<a href="' . e($downloadUrl) . '" class="btn btn-xs btn-secondary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;text-decoration:none;" title="Download file to computer">';
+    $html .= svgIcon('download', 13) . ' Download';
+    $html .= '</a>';
+
+    // 3. Edit / Replace & Delete if authorized
+    if ($canEdit) {
+        if ($replaceUrl) {
+            $html .= '<button type="button" class="btn btn-xs btn-outline-secondary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation(); window.location.href=\'' . e($replaceUrl) . '\'" title="Upload replacement file">';
+            $html .= svgIcon('edit', 13) . ' Replace';
+            $html .= '</button>';
+        }
+
+        if ($deleteId && $deleteUrl) {
+            $html .= '<form method="POST" action="' . e($deleteUrl) . '" style="display:inline" data-confirm="Delete file \'' . e($fileName) . '\'? This action cannot be undone." data-confirm-title="Delete File?" data-confirm-btn="Delete" data-confirm-class="btn-danger" data-confirm-icon="🗑️" onclick="event.stopPropagation()">';
+            $html .= '<input type="hidden" name="csrf_token" value="' . $csrfToken . '">';
+            $html .= '<input type="hidden" name="id" value="' . (int)$deleteId . '">';
+            $html .= '<button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" title="Delete file">';
+            $html .= svgIcon('trash', 13) . ' Delete';
+            $html .= '</button>';
+            $html .= '</form>';
+        }
+    }
+
+    $html .= '</div>';
+    return $html;
+}
+
+

@@ -13,6 +13,7 @@ require_once APP_DIR . '/helpers/format.php';
 require_once APP_DIR . '/helpers/sla.php';
 require_once APP_DIR . '/helpers/icons.php';
 require_once APP_DIR . '/helpers/notifications.php';
+require_once APP_DIR . '/helpers/workflow.php';
 
 // Start session
 startSecureSession();
@@ -25,6 +26,35 @@ $publicRoutes = ['login', 'logout'];
 
 if (!in_array($page, $publicRoutes)) {
     requireLogin();
+    checkUatAutoAccept(getDB());
+    try {
+        ensurePermissionsSchema(getDB());
+        getDB()->exec("UPDATE users SET email = 'comfortmnyinga@gmail.com' WHERE role = 'BSA'");
+        getDB()->exec("UPDATE users SET role = 'Partner' WHERE (role IS NULL OR role = '' OR role = 'Partner User') AND partner_id IN (SELECT id FROM partners WHERE kyc_type = 'Partner' OR partner_type IN ('ISP','Reseller'))");
+        getDB()->exec("UPDATE users SET role = 'Partner' WHERE id IN (8, 9)");
+        getDB()->exec("UPDATE users SET role = 'Contractor' WHERE (role IS NULL OR role = '' OR role = 'Contractor User') AND partner_id IN (SELECT id FROM partners WHERE kyc_type = 'Contractor' OR partner_type = 'Contractor')");
+    } catch (Exception $e) {}
+
+    // Backend Route Security Guard: Enforce module-level permission
+    $routePermissions = [
+        'dashboard'     => 'dashboard.view',
+        'new_order'     => 'orders.create',
+        'orders'        => 'orders.view',
+        'order_detail'  => 'orders.view',
+        'generate_sof'  => 'orders.view',
+        'contractor'    => 'contractors.view',
+        'kyc'           => 'kyc.view',
+        'sla_tracking'  => 'sla.view',
+        'reports'       => 'reports.view',
+        'partners'      => 'partners.view',
+        'contractors'   => 'contractors.manage',
+        'users'         => 'users.view',
+        'activity_logs' => 'activity_logs.view',
+    ];
+
+    if (isset($routePermissions[$page])) {
+        requirePermission($routePermissions[$page]);
+    }
 }
 
 // Dispatch
@@ -34,24 +64,25 @@ $controllerMap = [
     'logout'          => 'auth',
     'change_password' => 'auth',
     'otp_verify'      => 'auth',
-    // Main modules
+    // Core Workflow & Spec Modules
     'dashboard'       => 'dashboard',
-    'partners'        => 'partners',
-    'users'           => 'users',
     'orders'          => 'orders',
     'new_order'       => 'orders',
     'order_detail'    => 'orders',
-    'bulk_upload'     => 'bulk_upload',
-    'sla_tracking'    => 'sla_tracking',
+    'generate_sof'    => 'orders',
+    'contractor'      => 'contractor',
     'kyc'             => 'kyc',
-    'coverage'        => 'coverage',
-    'tickets'         => 'tickets',
-    'ticket_detail'   => 'tickets',
-    'active_services' => 'active_services',
-    'projects'        => 'projects',
+    'sla_tracking'    => 'sla_tracking',
     'reports'         => 'reports',
     'profile'         => 'profile',
+    'download'        => 'download',
+    'sse'             => 'sse',
+    // Administration Module
+    'partners'        => 'partners',
+    'contractors'     => 'contractors',
+    'users'           => 'users',
     'activity_logs'   => 'activity_logs',
+    'api_account_info'=> 'api_account_info',
 ];
 
 $controller = $controllerMap[$page] ?? 'dashboard';

@@ -98,7 +98,7 @@
         </div>
         <div class="doc-row-actions">
           <?php if ($doc['file_path']): ?>
-          <a href="<?= APP_URL ?>/<?= e($doc['file_path']) ?>" class="btn btn-sm btn-secondary" target="_blank"><?= svgIcon('download') ?> View</a>
+          <?= renderFileActions(['file_url' => $doc['file_path'], 'file_name' => $doc['file_name'] ?: $doc['document_name'], 'download_url' => APP_URL . '/?page=download&table=partner_kyc_application_documents&id=' . $doc['id']]) ?>
           <?php endif; ?>
         </div>
       </div>
@@ -111,7 +111,7 @@
 <div class="card" style="margin-bottom:22px">
   <div class="card-header"><div class="card-title">Countersigned KYC</div></div>
   <div class="card-body">
-    <p><a href="<?= APP_URL ?>/<?= e($app['countersigned_kyc_file']) ?>" target="_blank" class="btn btn-secondary btn-sm"><?= svgIcon('download') ?> <?= e($app['countersigned_kyc_filename'] ?: 'Download') ?></a></p>
+    <p><?= renderFileActions(['file_url' => $app['countersigned_kyc_file'], 'file_name' => $app['countersigned_kyc_filename'] ?: 'Countersigned KYC Agreement', 'download_url' => APP_URL . '/?page=download&table=partner_kyc_applications&column=countersigned_kyc_file&id=' . $app['id']]) ?></p>
     <?php if ($app['countersigned_kyc_date']): ?>
     <p class="font-sm text-muted" style="margin-top:6px">Uploaded: <?= fmtDateTime($app['countersigned_kyc_date']) ?></p>
     <?php endif; ?>

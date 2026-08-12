@@ -5,7 +5,7 @@ $user  = currentUser();
 $currentPage = $_GET['page'] ?? 'dashboard';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -48,140 +48,141 @@ $currentPage = $_GET['page'] ?? 'dashboard';
   </div>
 
   <nav class="sidebar-nav">
-    <div class="nav-section-label">Main</div>
+    <?php
+    $sidebarSections = [
+        [
+            'label' => 'Main',
+            'items' => [
+                [
+                    'key'        => 'dashboard',
+                    'title'      => 'Dashboard',
+                    'url'        => APP_URL . '/?page=dashboard',
+                    'icon'       => 'dashboard',
+                    'permission' => 'dashboard.view',
+                ],
+            ],
+        ],
+        [
+            'label' => 'Order Lifecycle',
+            'items' => [
+                [
+                    'key'        => 'new_order',
+                    'title'      => 'New Service Order',
+                    'url'        => APP_URL . '/?page=new_order',
+                    'icon'       => 'plus-circle',
+                    'permission' => 'orders.create',
+                ],
+                [
+                    'key'        => 'orders',
+                    'title'      => 'Order Tracking',
+                    'url'        => APP_URL . '/?page=orders',
+                    'icon'       => 'list',
+                    'permission' => 'orders.view',
+                ],
+            ],
+        ],
+        [
+            'label' => 'Field & Vendor Delivery',
+            'items' => [
+                [
+                    'key'        => 'contractor',
+                    'title'      => isContractorUser() ? 'My Jobs' : 'Contractors',
+                    'url'        => APP_URL . '/?page=contractor',
+                    'icon'       => 'users',
+                    'permission' => 'contractors.view',
+                    'badge'      => function() use ($user) {
+                        if (!isContractorUser()) return '';
+                        try {
+                            $db = getDB();
+                            $cntStmt = $db->prepare("SELECT COUNT(*) FROM contractor_assignments ca WHERE ca.contractor_partner_id = ? AND ca.status = 'Assigned'");
+                            $cntStmt->execute([$user['partner_id'] ?? 0]);
+                            $cnt = (int)$cntStmt->fetchColumn();
+                            return $cnt > 0 ? "<span class='nav-badge'>$cnt</span>" : '';
+                        } catch(Exception $e) { return ''; }
+                    }
+                ],
+            ],
+        ],
+        [
+            'label' => 'Compliance & SLAs',
+            'items' => [
+                [
+                    'key'        => 'kyc',
+                    'title'      => 'KYC Application',
+                    'url'        => APP_URL . '/?page=kyc',
+                    'icon'       => 'document',
+                    'permission' => 'kyc.view',
+                ],
+                [
+                    'key'        => 'sla_tracking',
+                    'title'      => 'SLA Tracking',
+                    'url'        => APP_URL . '/?page=sla_tracking',
+                    'icon'       => 'clock',
+                    'permission' => 'sla.view',
+                ],
+                [
+                    'key'        => 'reports',
+                    'title'      => 'Reports',
+                    'url'        => APP_URL . '/?page=reports',
+                    'icon'       => 'chart',
+                    'permission' => 'reports.view',
+                ],
+            ],
+        ],
+        [
+            'label' => 'Administration',
+            'items' => [
+                [
+                    'key'        => 'partners',
+                    'title'      => 'Partner Management',
+                    'url'        => APP_URL . '/?page=partners',
+                    'icon'       => 'building',
+                    'permission' => 'partners.view',
+                ],
+                [
+                    'key'        => 'contractors',
+                    'title'      => 'Contractors Management',
+                    'url'        => APP_URL . '/?page=contractors',
+                    'icon'       => 'users',
+                    'permission' => 'contractors.manage',
+                ],
+                [
+                    'key'        => 'users',
+                    'title'      => 'User Management',
+                    'url'        => APP_URL . '/?page=users',
+                    'icon'       => 'users',
+                    'permission' => 'users.view',
+                ],
+                [
+                    'key'        => 'activity_logs',
+                    'title'      => 'Activity Logs',
+                    'url'        => APP_URL . '/?page=activity_logs',
+                    'icon'       => 'activity',
+                    'permission' => 'activity_logs.view',
+                ],
+            ],
+        ],
+    ];
 
+    foreach ($sidebarSections as $sec):
+        $visibleItems = array_filter($sec['items'], function($it) {
+            return hasPermission($it['permission']);
+        });
+        if (empty($visibleItems)) continue;
+    ?>
+    <div class="nav-section-label"><?= e($sec['label']) ?></div>
+    <?php foreach ($visibleItems as $item): ?>
     <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=dashboard" class="nav-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
-        <?= svgIcon('dashboard') ?>
-        <span>Dashboard</span>
+      <a href="<?= $item['url'] ?>" class="nav-link <?= $currentPage === $item['key'] ? 'active' : '' ?>">
+        <?= svgIcon($item['icon']) ?>
+        <span><?= e($item['title']) ?></span>
+        <?php if (!empty($item['badge']) && is_callable($item['badge'])) echo $item['badge'](); ?>
       </a>
     </div>
-
-    <div class="nav-section-label">Orders</div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=coverage" class="nav-link <?= $currentPage === 'coverage' ? 'active' : '' ?>">
-        <?= svgIcon('map') ?>
-        <span>Coverage Check</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=new_order" class="nav-link <?= $currentPage === 'new_order' ? 'active' : '' ?>">
-        <?= svgIcon('plus-circle') ?>
-        <span>New Service Order</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=bulk_upload" class="nav-link <?= $currentPage === 'bulk_upload' ? 'active' : '' ?>">
-        <?= svgIcon('upload') ?>
-        <span>Bulk FTTH Upload</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=orders" class="nav-link <?= $currentPage === 'orders' ? 'active' : '' ?>">
-        <?= svgIcon('list') ?>
-        <span>Order Tracking</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=sla_tracking" class="nav-link <?= $currentPage === 'sla_tracking' ? 'active' : '' ?>">
-        <?= svgIcon('clock') ?>
-        <span>SLA Tracking</span>
-      </a>
-    </div>
-
-    <div class="nav-section-label">Services & Support</div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=active_services" class="nav-link <?= $currentPage === 'active_services' ? 'active' : '' ?>">
-        <?= svgIcon('server') ?>
-        <span>Active Services</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=tickets" class="nav-link <?= $currentPage === 'tickets' || $currentPage === 'ticket_detail' ? 'active' : '' ?>">
-        <?= svgIcon('ticket') ?>
-        <span>Trouble Tickets</span>
-        <?php
-        // Show open ticket count badge
-        try {
-          $db = getDB();
-          $pw = partnerWhere('tt');
-          $sql = "SELECT COUNT(*) FROM trouble_tickets tt WHERE tt.status NOT IN ('Closed') AND {$pw['condition']}";
-          $st = $db->prepare($sql);
-          $st->execute($pw['params']);
-          $cnt = (int)$st->fetchColumn();
-          if ($cnt > 0) echo "<span class='nav-badge'>$cnt</span>";
-        } catch(Exception $e) {}
-        ?>
-      </a>
-    </div>
-
-    <?php if (hasRole('BSA', 'Project Team', 'Engineering Coordinator')): ?>
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=projects" class="nav-link <?= $currentPage === 'projects' ? 'active' : '' ?>">
-        <?= svgIcon('project') ?>
-        <span>Project Delivery</span>
-      </a>
-    </div>
-    <?php endif; ?>
-
-    <div class="nav-section-label">Compliance</div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=kyc" class="nav-link <?= $currentPage === 'kyc' ? 'active' : '' ?>">
-        <?= svgIcon('document') ?>
-        <span>KYC Application</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=assets" class="nav-link <?= $currentPage === 'assets' ? 'active' : '' ?>">
-        <?= svgIcon('server') ?>
-        <span>Asset Inventory</span>
-      </a>
-    </div>
-
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=reports" class="nav-link <?= $currentPage === 'reports' ? 'active' : '' ?>">
-        <?= svgIcon('chart') ?>
-        <span>Reports</span>
-      </a>
-    </div>
-
-    <?php if (!isPartnerUser()): ?>
-    <div class="nav-section-label">Administration</div>
-
-    <?php if (isAdmin()): ?>
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=partners" class="nav-link <?= $currentPage === 'partners' ? 'active' : '' ?>">
-        <?= svgIcon('building') ?>
-        <span>Partner Management</span>
-      </a>
-    </div>
-    <?php endif; ?>
-
-    <?php if (isAdmin()): ?>
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=users" class="nav-link <?= $currentPage === 'users' ? 'active' : '' ?>">
-        <?= svgIcon('users') ?>
-        <span>User Management</span>
-      </a>
-    </div>
-    <div class="nav-item">
-      <a href="<?= APP_URL ?>/?page=activity_logs" class="nav-link <?= $currentPage === 'activity_logs' ? 'active' : '' ?>">
-        <?= svgIcon('activity') ?>
-        <span>Activity Logs</span>
-      </a>
-    </div>
-    <?php endif; ?>
-    <?php endif; ?>
+    <?php endforeach; ?>
+  <?php endforeach; ?>
   </nav>
+
 
   <div class="sidebar-footer">
     <a href="<?= APP_URL ?>/?page=profile" class="sidebar-user" style="text-decoration:none;color:inherit">
@@ -223,13 +224,6 @@ $currentPage = $_GET['page'] ?? 'dashboard';
     <div class="topbar-title"><?= e($pageTitle ?? 'Dashboard') ?></div>
     <div class="topbar-actions">
       <span style="font-size:.8rem;color:var(--text-secondary)"><?= e($user['full_name']) ?></span>
-      <!-- Theme toggle -->
-      <button id="themeToggle" class="topbar-btn" title="Toggle light / dark mode" aria-label="Toggle theme">
-        <!-- Moon icon (shown in dark mode) -->
-        <svg class="theme-toggle-icon--dark" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
-        <!-- Sun icon (shown in light mode) -->
-        <svg class="theme-toggle-icon--light" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-      </button>
       <a href="<?= APP_URL ?>/?page=profile" class="topbar-btn" title="Profile" style="position:relative">
         <?php $tpPic = profilePictureUrl($user['profile_picture'] ?? ''); ?>
         <?php if ($tpPic): ?>
@@ -247,8 +241,12 @@ $currentPage = $_GET['page'] ?? 'dashboard';
   <!-- Page Content -->
   <div class="page-content">
     <?php if ($flash): ?>
-    <div class="alert alert-<?= e($flash['type']) ?>">
+    <div class="alert alert-<?= e($flash['type']) ?>" data-countdown="20" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:12px;padding-bottom:14px">
       <?= svgIcon($flash['type'] === 'success' ? 'check' : ($flash['type'] === 'danger' ? 'x' : 'info')) ?>
-      <span><?= e($flash['message']) ?></span>
+      <span style="flex:1"><?= renderNotificationMessage($flash['message']) ?></span>
+      <span class="notification-countdown-badge" style="font-size:0.78rem;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(0,0,0,0.08);color:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">
+        ⏳ <span class="countdown-timer-text">20s</span>
+      </span>
+      <div class="notification-progress-bar" style="position:absolute;bottom:0;left:0;height:4px;width:100%;background:currentColor;opacity:0.4;transition:width 1s linear"></div>
     </div>
     <?php endif; ?>

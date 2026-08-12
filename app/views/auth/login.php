@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@600;700;800&display=swap">
   <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/portal.css?v=<?= time() ?>">
   <link rel="icon" type="image/png" href="<?= APP_URL ?>/favicon.ico?v=2">
-  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('neilos-theme')||'light');</script>
+  <script>document.documentElement.setAttribute('data-theme','light');</script>
 </head>
 <body>
 <div class="login-page">
@@ -63,7 +63,7 @@
 
     <div class="divider"></div>
     <div style="text-align:center;font-size:.78rem;color:var(--text-muted)">
-      Demo credentials: <strong>admin / Admin@1234</strong> | <strong>savanna / password</strong> | <strong>bsa / Admin@1234</strong>
+      Demo credentials: <strong>admin / Admin@1234</strong> | <strong>partner_fastnet / Admin@1234</strong> | <strong>bsa_sarah / Admin@1234</strong>
     </div>
     <div style="text-align:center;font-size:.72rem;color:var(--text-muted);margin-top:20px">
       &copy; <?= date('Y') ?> Neilos Network · Partner Portal v1.0

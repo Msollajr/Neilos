@@ -3,22 +3,24 @@
 // Neilos Portal — Executive Telecom/ISP Operations Dashboard View
 // ============================================================
 
-$activatedOrders = $orderStats['Activated'] ?? 0;
-$submittedOrders = $orderStats['Submitted'] ?? 0;
+$activatedOrders = $orderStats['Closed'] ?? 0;
+$submittedOrders = $totalOrders;
 
-// Chart color mapping — dark blue palette
+// Chart color mapping — dark blue & vibrant palette
 $chartColors = [
-  'Submitted'          => ['bg' => '#0F4C81', 'border' => '#1D70B8'],
-  'Feasibility Review' => ['bg' => '#F59E0B', 'border' => '#FCD34D'],
-  'Approved'           => ['bg' => '#10B981', 'border' => '#34D399'],
-  'Provisioning'       => ['bg' => '#083252', 'border' => '#0F4C81'],
-  'Testing'            => ['bg' => '#06B6D4', 'border' => '#22D3EE'],
-  'UAT'                => ['bg' => '#3B82F6', 'border' => '#60A5FA'],
-  'Activated'          => ['bg' => '#22C55E', 'border' => '#4ADE80'],
-  'Cancelled'          => ['bg' => '#EF4444', 'border' => '#F87171'],
+  'Feasibility Review'       => ['bg' => '#F59E0B', 'border' => '#FCD34D'],
+  'Await Commercial Approval' => ['bg' => '#8B5CF6', 'border' => '#A78BFA'],
+  'Management Approval'       => ['bg' => '#EC4899', 'border' => '#F472B6'],
+  'Pending SOF'              => ['bg' => '#3B82F6', 'border' => '#60A5FA'],
+  'SOF Review'               => ['bg' => '#06B6D4', 'border' => '#22D3EE'],
+  'Installation'             => ['bg' => '#0F4C81', 'border' => '#1D70B8'],
+  'Testing'                  => ['bg' => '#14B8A6', 'border' => '#2DD4BF'],
+  'UAT'                      => ['bg' => '#6366F1', 'border' => '#818CF8'],
+  'Closed'                   => ['bg' => '#10B981', 'border' => '#34D399'],
+  'Not Feasible'             => ['bg' => '#EF4444', 'border' => '#F87171'],
 ];
 
-$pipelineSteps = ['Submitted', 'Feasibility Review', 'Approved', 'Provisioning', 'Testing', 'Activated'];
+$pipelineSteps = ['Feasibility Review', 'Await Commercial Approval', 'Management Approval', 'Pending SOF', 'SOF Review', 'Installation', 'Testing', 'UAT', 'Closed'];
 $totalInPipeline = 0;
 foreach ($pipelineSteps as $s) { $totalInPipeline += $orderStats[$s] ?? 0; }
 $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSteps)));
@@ -31,9 +33,6 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   <div class="page-header-actions">
     <a href="<?= APP_URL ?>/?page=new_order" class="btn btn-primary">
       <?= svgIcon('plus') ?> New Service Order
-    </a>
-    <a href="<?= APP_URL ?>/?page=tickets&action=new" class="btn btn-secondary">
-      <?= svgIcon('ticket') ?> New Ticket
     </a>
   </div>
 </div>
@@ -49,14 +48,14 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <a href="<?= APP_URL ?>/?page=new_order" class="btn btn-primary btn-sm">
         <?= svgIcon('plus') ?> New Order
       </a>
-      <a href="<?= APP_URL ?>/?page=tickets&action=new" class="btn btn-secondary btn-sm">
-        <?= svgIcon('ticket') ?> Open Ticket
+      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">
+        <?= svgIcon('list') ?> Order Tracking
       </a>
-      <a href="<?= APP_URL ?>/?page=coverage" class="btn btn-secondary btn-sm">
-        <?= svgIcon('map') ?> Check Coverage
+      <a href="<?= APP_URL ?>/?page=contractor" class="btn btn-secondary btn-sm">
+        <?= svgIcon('users') ?> Contractor Jobs
       </a>
-      <a href="<?= APP_URL ?>/?page=bulk_upload" class="btn btn-secondary btn-sm">
-        <?= svgIcon('upload') ?> Bulk Upload
+      <a href="<?= APP_URL ?>/?page=kyc" class="btn btn-secondary btn-sm">
+        <?= svgIcon('document') ?> KYC Application
       </a>
       <?php if (isAdmin()): ?>
       <a href="<?= APP_URL ?>/?page=partners" class="btn btn-secondary btn-sm">
@@ -73,7 +72,7 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   </div>
 </div>
 
-<!-- 12 Executive Summary Cards Grid (All Clickable Module Links) -->
+<!-- 7 Executive Summary Cards Grid (All Clickable Module Links) -->
 <div class="stats-grid mb-24">
   <!-- Total Service Orders -->
   <a href="<?= APP_URL ?>/?page=orders" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view all Service Orders">
@@ -85,18 +84,18 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
     </div>
   </a>
 
-  <!-- Active Services -->
-  <a href="<?= APP_URL ?>/?page=active_services" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Active Services">
+  <!-- Closed Orders -->
+  <a href="<?= APP_URL ?>/?page=orders&status=Closed" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Closed Orders">
     <div class="stat-icon green"><?= svgIcon('server', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $activeServices ?>">0</div>
-      <div class="stat-label">Active Services</div>
-      <div class="stat-change up">99.8% Uptime</div>
+      <div class="stat-value" data-count="<?= $completedOrders ?>">0</div>
+      <div class="stat-label">Closed Orders</div>
+      <div class="stat-change up">Billing Active</div>
     </div>
   </a>
 
-  <!-- Pending Orders -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Submitted" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Pending Orders">
+  <!-- Pending Actions -->
+  <a href="<?= APP_URL ?>/?page=orders&status=Feasibility Review" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Feasibility Review">
     <div class="stat-icon yellow"><?= svgIcon('clock', 22) ?></div>
     <div class="stat-info">
       <div class="stat-value" data-count="<?= $pendingBSA + $pendingUAT ?>">0</div>
@@ -105,62 +104,28 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
     </div>
   </a>
 
-  <!-- Completed Orders -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Activated" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Completed Orders">
-    <div class="stat-icon green"><?= svgIcon('check-circle', 22) ?></div>
+  <!-- In-Progress Orders -->
+  <a href="<?= APP_URL ?>/?page=orders&status=Installation" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view In-Progress Orders">
+    <div class="stat-icon blue"><?= svgIcon('project', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $completedOrders ?>">0</div>
-      <div class="stat-label">Completed Orders</div>
-      <div class="stat-change up">+<?= $completedOrders ?> activated</div>
+      <div class="stat-value" data-count="<?= ($orderStats['Installation'] ?? 0) + ($orderStats['Testing'] ?? 0) + ($orderStats['UAT'] ?? 0) ?>">0</div>
+      <div class="stat-label">In-Progress Orders</div>
+      <div class="stat-change up">Fulfillment active</div>
     </div>
   </a>
 
-  <!-- Cancelled Orders -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Cancelled" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Cancelled Orders">
+  <!-- Not Feasible Orders -->
+  <a href="<?= APP_URL ?>/?page=orders&status=Not Feasible" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Not Feasible Orders">
     <div class="stat-icon red"><?= svgIcon('x-circle', 22) ?></div>
     <div class="stat-info">
       <div class="stat-value" data-count="<?= $cancelledOrders ?>">0</div>
-      <div class="stat-label">Cancelled Orders</div>
+      <div class="stat-label">Not Feasible</div>
       <div class="stat-change text-muted">Low churn rate</div>
     </div>
   </a>
 
-  <!-- Open Tickets -->
-  <a href="<?= APP_URL ?>/?page=tickets" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Trouble Tickets">
-    <div class="stat-icon <?= $openTickets > 0 ? 'red' : 'green' ?>"><?= svgIcon('ticket', 22) ?></div>
-    <div class="stat-info">
-      <div class="stat-value" data-count="<?= $openTickets ?>">0</div>
-      <div class="stat-label">Open Tickets</div>
-      <?php if ($breachedTickets > 0): ?>
-      <div class="stat-change down"><?= $breachedTickets ?> SLA breached</div>
-      <?php else: ?>
-      <div class="stat-change up">All within SLA</div>
-      <?php endif; ?>
-    </div>
-  </a>
-
-  <!-- Closed Tickets -->
-  <a href="<?= APP_URL ?>/?page=tickets&status=Closed" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Resolved Tickets">
-    <div class="stat-icon blue"><?= svgIcon('check', 22) ?></div>
-    <div class="stat-info">
-      <div class="stat-value" data-count="<?= $closedTickets ?>">0</div>
-      <div class="stat-label">Resolved Tickets</div>
-      <div class="stat-change up">MTTR &lt; 4 hrs</div>
-    </div>
-  </a>
-
-  <!-- SLA Breaches -->
-  <a href="<?= APP_URL ?>/?page=sla_tracking" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view SLA Tracking">
-    <div class="stat-icon <?= $breachedTickets > 0 ? 'red' : 'green' ?>"><?= svgIcon('alert-triangle', 22) ?></div>
-    <div class="stat-info">
-      <div class="stat-value" data-count="<?= $breachedTickets ?>">0</div>
-      <div class="stat-label">SLA Breaches</div>
-      <div class="stat-change <?= $breachedTickets > 0 ? 'down' : 'up' ?>"><?= $breachedTickets == 0 ? 'Zero breaches' : 'Attention required' ?></div>
-    </div>
-  </a>
-
   <!-- Active Customers -->
-  <a href="<?= APP_URL ?>/?page=active_services" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Active Customers">
+  <a href="<?= APP_URL ?>/?page=orders&status=Closed" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Active Customers">
     <div class="stat-icon cyan"><?= svgIcon('users', 22) ?></div>
     <div class="stat-info">
       <div class="stat-value" data-count="<?= $activeCustomers ?>">0</div>
@@ -178,26 +143,163 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <div class="stat-change up">Verified ISPs &amp; VARs</div>
     </div>
   </a>
+</div>
 
-  <!-- Engineers -->
-  <a href="<?= APP_URL ?>/?page=users" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Staff &amp; Users">
-    <div class="stat-icon blue"><?= svgIcon('shield', 22) ?></div>
-    <div class="stat-info">
-      <div class="stat-value" data-count="<?= $totalEngineers ?>">0</div>
-      <div class="stat-label">NOC &amp; Eng Staff</div>
-      <div class="stat-change up">24/7 Coverage</div>
+<!-- ============================================================ -->
+<!-- Dedicated Revenue Analysis Section (Single Source of Truth)   -->
+<!-- ============================================================ -->
+<div class="card mb-24" id="revenue-analysis-section">
+  <div class="card-header" style="border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+    <div>
+      <div class="card-title" style="font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <?= svgIcon('dollar-sign', 22) ?> Dedicated Revenue Analysis
+      </div>
+      <div class="card-subtitle">Calculated strictly from Closed + Billing Active Orders (status = Closed and billing start date reached) using final Commercial Summary values.</div>
     </div>
-  </a>
+  </div>
+  <div class="card-body" style="padding: 20px;">
+    
+    <!-- 1. Revenue Summary KPI Cards -->
+    <div style="margin-bottom: 24px;">
+      <h3 style="font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;">1. Revenue Summary</h3>
+      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+        <!-- NRC Revenue -->
+        <div class="stat-card" style="border-left: 4px solid #3B82F6; background: var(--surface-1);">
+          <div class="stat-icon blue"><?= svgIcon('dollar', 22) ?></div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size: 1.45rem;">TZS <?= money($totalNrcRevenue) ?></div>
+            <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">NRC Revenue</div>
+            <div class="stat-change text-muted font-sm">One-time revenue (Incl. 18% VAT)</div>
+          </div>
+        </div>
 
-  <!-- Revenue / Total MRC -->
-  <a href="<?= APP_URL ?>/?page=reports" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Financial Reports">
-    <div class="stat-icon green"><?= svgIcon('dollar-sign', 22) ?></div>
-    <div class="stat-info">
-      <div class="stat-value">$<?= money($monthlyRevenue) ?></div>
-      <div class="stat-label">Monthly Active MRC</div>
-      <div class="stat-change up">Recurring revenue</div>
+        <!-- MRC Revenue -->
+        <div class="stat-card" style="border-left: 4px solid #10B981; background: var(--surface-1);">
+          <div class="stat-icon green"><?= svgIcon('dollar-sign', 22) ?></div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size: 1.45rem;">TZS <?= money($totalMrcRevenue) ?></div>
+            <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">MRC Revenue</div>
+            <div class="stat-change text-muted font-sm">Recurring monthly (Incl. 18% VAT)</div>
+          </div>
+        </div>
+
+        <!-- Total Revenue -->
+        <div class="stat-card" style="border-left: 4px solid #0F4C81; background: var(--surface-1);">
+          <div class="stat-icon navy"><?= svgIcon('chart', 22) ?></div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size: 1.45rem; color: #0F4C81;">TZS <?= money($totalCombinedRevenue) ?></div>
+            <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">Total Revenue</div>
+            <div class="stat-change up">Combined NRC + MRC (Incl. 18% VAT)</div>
+          </div>
+        </div>
+      </div>
     </div>
-  </a>
+
+    <!-- 2. NRC / MRC Breakdown -->
+    <div style="margin-bottom: 24px;">
+      <h3 style="font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;">2. NRC / MRC Revenue Breakdown</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; background: var(--surface-2); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+        <div>
+          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Total NRC (Incl. VAT)</div>
+          <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">TZS <?= money($totalNrcRevenue) ?></div>
+        </div>
+        <div>
+          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Total MRC (Incl. VAT)</div>
+          <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">TZS <?= money($totalMrcRevenue) ?></div>
+        </div>
+        <div>
+          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Total Revenue</div>
+          <div style="font-size: 1.15rem; font-weight: 700; color: #0F4C81; margin-top: 4px;">TZS <?= money($totalCombinedRevenue) ?></div>
+        </div>
+        <div>
+          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Billing-Active Orders</div>
+          <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;"><?= $billingActiveCount ?></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 & 4. Revenue Charts Grid Row -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-bottom: 24px;">
+      <!-- 3. Revenue Comparison Chart -->
+      <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; background: var(--surface-1);">
+        <div style="font-weight: 600; font-size: 0.92rem; margin-bottom: 2px;">3. Revenue Comparison (NRC vs MRC vs Total)</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">Visual comparison matching summary KPI cards exactly</div>
+        <div style="position: relative; height: 250px; width: 100%;">
+          <canvas id="revenueComparisonChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 4. Revenue Trend Chart -->
+      <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; background: var(--surface-1);">
+        <div style="font-weight: 600; font-size: 0.92rem; margin-bottom: 2px;">4. Revenue Trend Over Time</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">Billing activation date (NRC one-time, MRC recurring)</div>
+        <div style="position: relative; height: 250px; width: 100%;">
+          <canvas id="revenueTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Detailed Revenue Table -->
+    <div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <div>
+          <h3 style="font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin: 0;">5. Detailed Revenue Table</h3>
+          <div style="font-size: 0.78rem; color: var(--text-muted);">All Closed orders with billing start date reached</div>
+        </div>
+        <span class="badge badge-outline"><?= count($detailedRevenueRows) ?> billing-active order(s)</span>
+      </div>
+      <div class="table-responsive" style="border: 1px solid var(--border); border-radius: var(--radius-md);">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Customer</th>
+              <th>Service Type</th>
+              <th>Billing Start Date</th>
+              <th class="text-right">NRC (Incl. VAT)</th>
+              <th class="text-right">MRC (Incl. VAT)</th>
+              <th class="text-right">VAT (18%)</th>
+              <th class="text-right">Total Revenue</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (empty($detailedRevenueRows)): ?>
+            <tr>
+              <td colspan="9">
+                <div class="empty-state p-16">
+                  <div class="empty-state-title">No qualifying billing-active orders found</div>
+                  <div class="empty-state-text">All financial values display TZS 0.00 until orders are Closed with active billing start dates.</div>
+                </div>
+              </td>
+            </tr>
+            <?php else: ?>
+            <?php foreach ($detailedRevenueRows as $row): ?>
+            <tr>
+              <td>
+                <a href="<?= APP_URL ?>/?page=order_detail&id=<?= $row['id'] ?>" class="font-600" style="color:var(--accent)">
+                  <?= e($row['order_number']) ?>
+                </a>
+              </td>
+              <td><?= e($row['customer_name']) ?></td>
+              <td><span class="badge badge-primary"><?= e($row['service_type']) ?></span></td>
+              <td class="font-sm"><?= fmtDate($row['billing_start_date']) ?></td>
+              <td class="text-right font-sm font-600">TZS <?= money($row['nrc']) ?></td>
+              <td class="text-right font-sm font-600">TZS <?= money($row['mrc']) ?></td>
+              <td class="text-right font-sm text-muted">TZS <?= money($row['vat']) ?></td>
+              <td class="text-right font-sm font-700" style="color: #0F4C81;">TZS <?= money($row['total_revenue']) ?></td>
+              <td class="text-center">
+                <span class="badge badge-success"><?= e($row['status']) ?> · Active</span>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- Responsive Charts Grid Row 1 -->
@@ -214,7 +316,7 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
-      <div class="chart-container" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
+      <div class="chart-container" style="position:relative;height:260px;width:100%;cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
         <canvas id="monthlyTrendChart"></canvas>
       </div>
     </div>
@@ -227,12 +329,12 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
         <div class="card-title" style="display:flex;align-items:center;gap:6px">
           Order Status Distribution <?= svgIcon('chevron-right', 14) ?>
         </div>
-        <div class="card-subtitle">Breakdown by current stage</div>
+        <div class="card-subtitle"><?= $totalOrders ?> total orders by current stage</div>
       </div>
       <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
-      <div class="chart-container">
+      <div class="chart-container" style="position:relative;height:260px;width:100%">
         <canvas id="statusDonutChart"></canvas>
       </div>
     </div>
@@ -243,17 +345,17 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
 <div class="grid-dashboard mb-24">
   <!-- Pie Chart: Services Distribution by Type -->
   <div class="card chart-card">
-    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=active_services'">
+    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
       <div>
         <div class="card-title" style="display:flex;align-items:center;gap:6px">
           Service Type Distribution <?= svgIcon('chevron-right', 14) ?>
         </div>
-        <div class="card-subtitle">FTTH, DIA, Layer 2 &amp; FTTB</div>
+        <div class="card-subtitle"><?= $totalOrders ?> total orders grouped by service type</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=active_services" class="btn btn-secondary btn-sm">View Services</a>
+      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
-      <div class="chart-container">
+      <div class="chart-container" style="position:relative;height:260px;width:100%">
         <canvas id="serviceTypeChart"></canvas>
       </div>
     </div>
@@ -261,17 +363,17 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
 
   <!-- Stacked Bar: Network & Service Health -->
   <div class="card chart-card">
-    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=active_services'">
+    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
       <div>
         <div class="card-title" style="display:flex;align-items:center;gap:6px">
           Network &amp; Service Health <?= svgIcon('chevron-right', 14) ?>
         </div>
-        <div class="card-subtitle">Online, degraded &amp; offline circuits</div>
+        <div class="card-subtitle"><?= $totalOrders ?> total orders across operational stages</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=active_services" class="btn btn-secondary btn-sm">View Services</a>
+      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
-      <div class="chart-container">
+      <div class="chart-container" style="position:relative;height:260px;width:100%">
         <canvas id="networkHealthChart"></canvas>
       </div>
     </div>
@@ -299,11 +401,14 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
         <a href="<?= APP_URL ?>/?page=orders&status=<?= urlencode($st) ?>" class="pipeline-step" style="text-decoration:none;color:inherit;cursor:pointer" title="View <?= e($st) ?> orders">
           <div class="pipeline-step-icon" style="background:<?= $c['bg'] ?>20;color:<?= $c['border'] ?>">
             <?= svgIcon(
-              $st === 'Submitted' ? 'plus-circle' :
-              ($st === 'Feasibility Review' ? 'search' :
-              ($st === 'Approved' ? 'check' :
-              ($st === 'Provisioning' ? 'refresh' :
-              ($st === 'Testing' ? 'shield' : 'server')))), 14
+              $st === 'Feasibility Review' ? 'search' :
+              ($st === 'Await Commercial Approval' || $st === 'Awaiting Commercial Approval' ? 'dollar' :
+              ($st === 'Management Approval' ? 'users' :
+              ($st === 'Pending SOF' ? 'document' :
+              ($st === 'SOF Review' ? 'edit' :
+              ($st === 'Installation' ? 'project' :
+              ($st === 'Testing' ? 'check' :
+              ($st === 'UAT' ? 'check' : 'server'))))))), 14
             ) ?>
           </div>
           <div class="pipeline-step-info">
@@ -336,15 +441,13 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <?php else: ?>
       <div class="timeline">
         <?php foreach ($activityTimeline as $act):
-          $targetUrl = $act['type'] === 'order' 
-            ? APP_URL . '/?page=orders'
-            : APP_URL . '/?page=tickets';
+          $targetUrl = APP_URL . '/?page=orders';
         ?>
         <a href="<?= $targetUrl ?>" class="timeline-item" style="text-decoration:none;color:inherit;display:block;cursor:pointer">
-          <div class="timeline-dot <?= $act['type'] === 'order' ? 'success' : 'warning' ?>"></div>
+          <div class="timeline-dot success"></div>
           <div class="timeline-time"><?= timeAgo($act['event_time']) ?></div>
           <div class="timeline-label">
-            <?= $act['type'] === 'order' ? 'Order' : 'Ticket' ?> #<?= e($act['ref']) ?>
+            Order #<?= e($act['ref']) ?>
           </div>
           <div class="timeline-note">
             <?= e($act['title']) ?> — <span class="font-600"><?= e($act['sub']) ?></span>
@@ -387,8 +490,24 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
         <tr>
           <td><a href="<?= APP_URL ?>/?page=order_detail&id=<?= $ord['id'] ?>" class="font-600" style="color:var(--accent)"><?= e($ord['order_number']) ?></a></td>
           <td class="font-sm"><?= e($ord['partner_name']) ?></td>
-          <td><?= e($ord['customer_name']) ?></td>
-          <td><span class="badge badge-primary"><?= e($ord['service_type']) ?></span></td>
+          <td><?= e($ord['customer_name'] ?? $ord['end_user_name'] ?? '') ?></td>
+          <?php
+            $stVal = !empty($ord['service_type']) ? $ord['service_type'] : '';
+            if (!$stVal) {
+                if (!empty($ord['fttx_package'])) {
+                    $stVal = 'FTTH';
+                } elseif (!empty($ord['aggregate_capacity'])) {
+                    $stVal = 'Layer 2 ( last mile)';
+                } elseif (!empty($ord['bandwidth'])) {
+                    $stVal = 'BIA (Broadband Internet Access)';
+                } elseif ((float)($ord['remote_hands_nrc_usd'] ?? 0) > 0 || (float)($ord['base_nrc_usd'] ?? 0) == 80000) {
+                    $stVal = 'Remote Hands Only';
+                } else {
+                    $stVal = 'Not specified';
+                }
+            }
+          ?>
+          <td><span class="badge badge-primary"><?= e($stVal) ?></span></td>
           <td><span class="badge <?= orderStatusClass($ord['status']) ?>"><?= e($ord['status']) ?></span></td>
           <td class="text-muted font-sm"><?= fmtDate($ord['created_at']) ?></td>
           <td>
@@ -404,73 +523,12 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   </div>
 </div>
 
-<!-- Data Table 2: Trouble Tickets -->
-<div class="card">
-  <div class="card-header">
-    <div>
-      <div class="card-title">Active Trouble Tickets</div>
-      <div class="card-subtitle">Open support tickets needing NOC attention</div>
-    </div>
-    <a href="<?= APP_URL ?>/?page=tickets" class="btn btn-secondary btn-sm">View All Tickets</a>
-  </div>
-  <div class="table-responsive ticket-table-wrap">
-    <table class="data-table ticket-table">
-      <thead>
-        <tr>
-          <th class="col-ticket-id">Ticket ID</th>
-          <th class="col-service-id">Service ID</th>
-          <th class="col-fault">Fault</th>
-          <th class="col-severity text-center">Severity</th>
-          <th class="col-queue">Queue</th>
-          <th class="col-sla">SLA</th>
-          <th class="col-status text-center">Status</th>
-          <th class="col-actions text-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php if (empty($recentTickets)): ?>
-        <tr><td colspan="8"><div class="empty-state"><div class="empty-state-title">No active tickets</div><div class="empty-state-text">All services are operating normally.</div></div></td></tr>
-        <?php else: ?>
-        <?php foreach ($recentTickets as $tk):
-          $slaPct = calculateSLAPct($tk);
-          $slaLabel = getSLAStatusLabel($slaPct);
-        ?>
-        <tr class="ticket-row">
-          <td class="col-ticket-id"><a href="<?= APP_URL ?>/?page=ticket_detail&id=<?= $tk['id'] ?>" class="font-600" style="color:var(--accent)"><?= e($tk['ticket_number']) ?></a></td>
-          <td class="col-service-id font-sm text-secondary"><?= e($tk['service_id']) ?></td>
-          <td class="col-fault font-sm" title="<?= e($tk['fault_category']) ?>"><?= e($tk['fault_category']) ?></td>
-          <td class="col-severity text-center"><span class="badge badge-<?= in_array($tk['severity'], ['Sev 1','Critical']) ? 'danger' : (in_array($tk['severity'], ['Sev 2','Standard']) ? 'warning' : 'secondary') ?>"><?= e($tk['severity']) ?></span></td>
-          <td class="col-queue font-sm text-secondary"><?= e($tk['current_queue']) ?></td>
-          <td class="col-sla">
-            <div class="sla-container">
-              <div class="sla-header-row">
-                <span style="font-size:.72rem;font-weight:700;color:<?= $slaPct >= 100 ? 'var(--danger-text)' : ($slaPct >= 80 ? 'var(--warning-text)' : 'var(--success-text)') ?>"><?= number_format($slaPct, 0) ?>%</span>
-                <span class="badge <?= slaBadgeClass($slaLabel) ?>" style="font-size:.65rem;height:18px;min-width:auto;padding:0 6px"><?= e($slaLabel) ?></span>
-              </div>
-              <div class="sla-bar-block">
-                <div class="sla-bar-fill <?= $slaPct >= 100 ? 'breach' : ($slaPct >= 80 ? 'warning' : 'normal') ?>" style="width:<?= min(100, $slaPct) ?>%"></div>
-              </div>
-            </div>
-          </td>
-          <td class="col-status text-center"><span class="badge <?= ticketStatusClass($tk['status']) ?>"><?= e($tk['status']) ?></span></td>
-          <td class="col-actions text-right">
-            <a href="<?= APP_URL ?>/?page=ticket_detail&id=<?= $tk['id'] ?>" class="btn btn-secondary btn-sm btn-icon" title="Manage Ticket">
-              <?= svgIcon('eye') ?>
-            </a>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-        <?php endif; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
+
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  var textColor = isDark ? '#A1A1AA' : '#52525B';
-  var gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  var textColor = '#52525B';
+  var gridColor = 'rgba(0,0,0,0.06)';
 
   // 1. Line Chart: Monthly Orders Created vs Completed (Clickable)
   var ctxTrend = document.getElementById('monthlyTrendChart');
@@ -521,31 +579,65 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 2. Donut Chart: Order Status Distribution (Clickable Slices)
+  // Shared Plugin to render exact numerical counts ABOVE vertical column bars
+  var barTopValuePlugin = {
+    id: 'barTopValuePlugin',
+    afterDraw: function(chart) {
+      var ctx = chart.ctx;
+      chart.data.datasets.forEach(function(dataset, i) {
+        var meta = chart.getDatasetMeta(i);
+        if (!meta.hidden) {
+          meta.data.forEach(function(bar, index) {
+            var val = dataset.data[index];
+            if (val !== null && val !== undefined && val >= 0) {
+              ctx.save();
+              ctx.fillStyle = textColor || '#475569';
+              ctx.font = '700 11px Inter, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(val.toString(), bar.x, bar.y - 4);
+              ctx.restore();
+            }
+          });
+        }
+      });
+    }
+  };
+
+  // 1. Vertical Column Bar Chart: Order Status Distribution (Sorted Highest to Lowest)
   var ctxDonut = document.getElementById('statusDonutChart');
   if (ctxDonut && typeof Chart !== 'undefined') {
-    var labels = [];
-    var data = [];
-    var bgColors = [];
-    var borderColors = [];
-    <?php foreach ($chartColors as $status => $c):
-      $cnt = $orderStats[$status] ?? 0;
-      if ($cnt > 0): ?>
-    labels.push('<?= e($status) ?>');
-    data.push(<?= $cnt ?>);
-    bgColors.push('<?= $c['bg'] ?>');
-    borderColors.push('<?= $c['border'] ?>');
-    <?php endif; endforeach; ?>
+    <?php
+    $sortedStatusStats = array_filter($orderStats, function($cnt) { return $cnt > 0; });
+    arsort($sortedStatusStats);
+    if (empty($sortedStatusStats)) {
+        $sortedStatusStats = $orderStats;
+        arsort($sortedStatusStats);
+    }
+    $statusLabels = array_keys($sortedStatusStats);
+    $statusCounts = array_values($sortedStatusStats);
+
+    $statusBgColors = [];
+    foreach ($statusLabels as $sl) {
+        $statusBgColors[] = $chartColors[$sl]['bg'] ?? '#0F4C81';
+    }
+    ?>
+
+    var statusLabels = <?= json_encode($statusLabels) ?>;
+    var statusCounts = <?= json_encode($statusCounts) ?>;
+    var statusColors = <?= json_encode($statusBgColors) ?>;
+    var maxStatusVal = Math.max.apply(null, statusCounts.concat([0]));
 
     new Chart(ctxDonut, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
-        labels: labels,
+        labels: statusLabels,
         datasets: [{
-          data: data,
-          backgroundColor: bgColors,
-          borderColor: borderColors,
-          borderWidth: 2
+          label: 'Orders',
+          data: statusCounts,
+          backgroundColor: statusColors,
+          borderRadius: { topLeft: 6, topRight: 6 },
+          maxBarThickness: 45
         }]
       },
       options: {
@@ -554,69 +646,314 @@ document.addEventListener('DOMContentLoaded', function() {
         onClick: function(evt, activeEls) {
           if (activeEls.length > 0) {
             var idx = activeEls[0].index;
-            var st = labels[idx];
+            var st = statusLabels[idx];
             window.location.href = APP_URL + '/?page=orders&status=' + encodeURIComponent(st);
           } else {
             window.location.href = APP_URL + '/?page=orders';
           }
         },
-        plugins: {
-          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } }
+        layout: {
+          padding: { top: 22, left: 10, right: 10 }
         },
-        cutout: '65%'
-      }
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: textColor,
+              font: { family: 'Inter', size: 10, weight: '600' },
+              maxRotation: 30,
+              autoSkip: false
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: maxStatusVal + Math.ceil(maxStatusVal * 0.25) + 1,
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              font: { family: 'Inter', size: 11 },
+              precision: 0
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return ' ' + context.label + ': ' + context.raw + ' order(s)';
+              }
+            }
+          }
+        }
+      },
+      plugins: [barTopValuePlugin]
     });
   }
 
-  // 3. Pie Chart: Service Type Distribution (Clickable Slices)
+  // 2. Vertical Column Bar Chart: Service Type Distribution (Sorted Highest to Lowest)
   var ctxSvc = document.getElementById('serviceTypeChart');
   if (ctxSvc && typeof Chart !== 'undefined') {
-    var svcLbls = <?= json_encode(array_keys($serviceTypeDist)) ?>;
-    var svcVals = <?= json_encode(array_values($serviceTypeDist)) ?>;
+    <?php
+    $sortedSvcDist = $serviceTypeDist;
+    arsort($sortedSvcDist);
+    $svcLabels = array_keys($sortedSvcDist);
+    $svcCounts = array_values($sortedSvcDist);
+    ?>
+
+    var svcLbls = <?= json_encode($svcLabels) ?>;
+    var svcVals = <?= json_encode($svcCounts) ?>;
+    var svcPalette = ['#0F4C81', '#06B6D4', '#10B981', '#F59E0B', '#1D70B8', '#8B5CF6', '#EC4899', '#6366F1'];
+
+    var svcColors = svcLbls.map(function(_, i) {
+      return svcPalette[i % svcPalette.length];
+    });
+
+    var maxSvcVal = Math.max.apply(null, svcVals.concat([0]));
+
     new Chart(ctxSvc, {
-      type: 'pie',
+      type: 'bar',
       data: {
         labels: svcLbls,
         datasets: [{
+          label: 'Orders',
           data: svcVals,
-          backgroundColor: ['#0F4C81', '#06B6D4', '#10B981', '#F59E0B', '#1D70B8']
+          backgroundColor: svcColors,
+          borderRadius: { topLeft: 6, topRight: 6 },
+          maxBarThickness: 50
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        onClick: function() { window.location.href = APP_URL + '/?page=active_services'; },
+        onClick: function() { window.location.href = APP_URL + '/?page=orders'; },
+        layout: {
+          padding: { top: 22, left: 10, right: 10 }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: textColor,
+              font: { family: 'Inter', size: 10, weight: '600' },
+              maxRotation: 30,
+              autoSkip: false
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: maxSvcVal + Math.ceil(maxSvcVal * 0.25) + 1,
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              font: { family: 'Inter', size: 11 },
+              precision: 0
+            }
+          }
+        },
         plugins: {
-          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } }
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                var val = context.raw || 0;
+                var tot = <?= (int)$totalOrders ?>;
+                var pct = tot > 0 ? ((val / tot) * 100).toFixed(1) : '0.0';
+                return ' ' + context.label + ': ' + val + ' order(s) (' + pct + '%)';
+              }
+            }
+          }
+        }
+      },
+      plugins: [barTopValuePlugin]
+    });
+  }
+
+  // 3. Vertical Column Bar Chart: Network & Service Health (Dynamic mapping of operational stages)
+  var ctxNH = document.getElementById('networkHealthChart');
+  if (ctxNH && typeof Chart !== 'undefined') {
+    var totOrders  = <?= (int)$totalOrders ?>;
+    var onlineCnt  = <?= (int)($networkHealth['Online (Closed)'] ?? 0) ?>;
+    var inProgCnt  = <?= (int)($networkHealth['In Progress / Pending'] ?? 0) ?>;
+    var notFeasCnt = <?= (int)($networkHealth['Not Feasible / Cancelled'] ?? 0) ?>;
+
+    var nhLabels = ['Online / Closed', 'In Progress / Pending', 'Not Feasible / Cancelled'];
+    var nhCounts = [onlineCnt, inProgCnt, notFeasCnt];
+    var nhColors = ['#10B981', '#3B82F6', '#EF4444'];
+    var maxNhVal = Math.max.apply(null, nhCounts.concat([0]));
+
+    new Chart(ctxNH, {
+      type: 'bar',
+      data: {
+        labels: nhLabels,
+        datasets: [{
+          label: 'Orders',
+          data: nhCounts,
+          backgroundColor: nhColors,
+          borderRadius: { topLeft: 6, topRight: 6 },
+          maxBarThickness: 50
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: function() { window.location.href = APP_URL + '/?page=orders'; },
+        layout: {
+          padding: { top: 22, left: 10, right: 10 }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              color: textColor,
+              font: { family: 'Inter', size: 11, weight: '600' },
+              autoSkip: false
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: maxNhVal + Math.ceil(maxNhVal * 0.25) + 1,
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              font: { family: 'Inter', size: 11 },
+              precision: 0
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                var val = context.raw || 0;
+                var pct = totOrders > 0 ? ((val / totOrders) * 100).toFixed(1) : '0.0';
+                return ' ' + context.label + ': ' + val + ' order(s) (' + pct + '%)';
+              }
+            }
+          }
+        }
+      },
+      plugins: [barTopValuePlugin]
+    });
+  }
+
+  // 5. Revenue Comparison Chart (Bar Chart: NRC vs MRC vs Total)
+  var ctxRevComp = document.getElementById('revenueComparisonChart');
+  if (ctxRevComp && typeof Chart !== 'undefined') {
+    new Chart(ctxRevComp, {
+      type: 'bar',
+      data: {
+        labels: ['NRC Revenue', 'MRC Revenue', 'Total Revenue'],
+        datasets: [{
+          label: 'Revenue (TZS Incl. VAT)',
+          data: [<?= $totalNrcRevenue ?>, <?= $totalMrcRevenue ?>, <?= $totalCombinedRevenue ?>],
+          backgroundColor: ['#3B82F6', '#10B981', '#0F4C81'],
+          borderColor: ['#2563EB', '#059669', '#0A365C'],
+          borderWidth: 1.5,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                var val = context.raw || 0;
+                return context.dataset.label + ': TZS ' + val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11, weight: '600' } } },
+          y: { 
+            grid: { color: gridColor }, 
+            ticks: { 
+              color: textColor, 
+              font: { family: 'Inter', size: 11 },
+              callback: function(value) { return 'TZS ' + value.toLocaleString(); }
+            } 
+          }
         }
       }
     });
   }
 
-  // 4. Stacked Bar: Network Health (Clickable)
-  var ctxNH = document.getElementById('networkHealthChart');
-  if (ctxNH && typeof Chart !== 'undefined') {
-    new Chart(ctxNH, {
+  // 6. Revenue Trend Chart (Bar + Line Chart over time)
+  var ctxRevTrend = document.getElementById('revenueTrendChart');
+  if (ctxRevTrend && typeof Chart !== 'undefined') {
+    var trendMonths = <?= json_encode(array_column($revenueTrend, 'month')) ?>;
+    var trendNrc    = <?= json_encode(array_column($revenueTrend, 'nrc')) ?>;
+    var trendMrc    = <?= json_encode(array_column($revenueTrend, 'mrc')) ?>;
+    var trendTotal  = <?= json_encode(array_column($revenueTrend, 'total')) ?>;
+
+    new Chart(ctxRevTrend, {
       type: 'bar',
       data: {
-        labels: ['Circuits Status'],
+        labels: trendMonths,
         datasets: [
-          { label: 'Online', data: [<?= $networkHealth['Online'] ?>], backgroundColor: '#10B981' },
-          { label: 'Degraded', data: [<?= $networkHealth['Degraded'] ?>], backgroundColor: '#F59E0B' },
-          { label: 'Offline', data: [<?= $networkHealth['Offline'] ?>], backgroundColor: '#EF4444' }
+          {
+            type: 'bar',
+            label: 'NRC (One-time)',
+            data: trendNrc,
+            backgroundColor: 'rgba(59, 130, 246, 0.85)',
+            borderColor: '#2563EB',
+            borderWidth: 1,
+            borderRadius: 4,
+            stack: 'combined'
+          },
+          {
+            type: 'bar',
+            label: 'MRC (Recurring)',
+            data: trendMrc,
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderColor: '#059669',
+            borderWidth: 1,
+            borderRadius: 4,
+            stack: 'combined'
+          },
+          {
+            type: 'line',
+            label: 'Total Revenue',
+            data: trendTotal,
+            borderColor: '#0F4C81',
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#0F4C81'
+          }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        indexAxis: 'y',
-        onClick: function() { window.location.href = APP_URL + '/?page=active_services'; },
-        scales: {
-          x: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor } },
-          y: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor } }
-        },
         plugins: {
-          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } }
+          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                var val = context.raw || 0;
+                return context.dataset.label + ': TZS ' + val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+              }
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11 } } },
+          y: { 
+            stacked: false, 
+            grid: { color: gridColor }, 
+            ticks: { 
+              color: textColor, 
+              font: { family: 'Inter', size: 11 },
+              callback: function(value) { return 'TZS ' + value.toLocaleString(); }
+            } 
+          }
         }
       }
     });

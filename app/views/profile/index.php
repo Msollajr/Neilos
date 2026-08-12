@@ -27,10 +27,10 @@
         <button type="submit" class="btn btn-primary btn-sm"><?= svgIcon('upload') ?> Upload</button>
       </form>
       <?php if ($picUrl): ?>
-      <form method="POST" style="margin-top:4px">
+      <form method="POST" style="margin-top:4px" data-confirm="Remove profile picture?">
         <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
         <input type="hidden" name="profile_action" value="remove_picture">
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove profile picture?')"><?= svgIcon('x') ?> Remove</button>
+        <button type="submit" class="btn btn-danger btn-sm"><?= svgIcon('x') ?> Remove</button>
       </form>
       <?php endif; ?>
     </div>

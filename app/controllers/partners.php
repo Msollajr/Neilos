@@ -4,8 +4,8 @@
 // ============================================================
 requireLogin();
 
-if (!isAdmin()) {
-    setFlash('danger', 'Access denied. Admin only.');
+if (!isAdmin() && !hasRole('Management')) {
+    setFlash('danger', 'Access denied. Admin or Management only.');
     header('Location: ' . APP_URL . '/?page=dashboard');
     exit;
 }
@@ -14,13 +14,32 @@ $db     = getDB();
 $user   = currentUser();
 $action = $_GET['action'] ?? 'list';
 
+// Ensure kam_id and assigned_kam_name columns exist
+try {
+    $pCols = $db->query("SHOW COLUMNS FROM partners")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('kam_id', $pCols)) {
+        $db->exec("ALTER TABLE partners ADD COLUMN kam_id INT NULL");
+    }
+    if (!in_array('assigned_kam_name', $pCols)) {
+        $db->exec("ALTER TABLE partners ADD COLUMN assigned_kam_name VARCHAR(100) NULL");
+    }
+} catch (Exception $e) {}
+
 // ------------------------------------------------------------------
 // POST: Create partner
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     verifyCsrf();
 
-    $stmt = $db->prepare("INSERT INTO partners (name, trading_name, partner_type, status, address, city_region, country, registration_number, tin) VALUES (?,?,?,?,?,?,?,?,?)");
+    $kamId = (int)($_POST['kam_id'] ?? 0) ?: null;
+    $kamName = null;
+    if ($kamId) {
+        $kStmt = $db->prepare("SELECT full_name FROM users WHERE id = ?");
+        $kStmt->execute([$kamId]);
+        $kamName = $kStmt->fetchColumn() ?: null;
+    }
+
+    $stmt = $db->prepare("INSERT INTO partners (name, trading_name, partner_type, status, address, city_region, country, registration_number, tin, kam_id, assigned_kam_name) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
     $stmt->execute([
         $_POST['name'] ?? '',
         $_POST['trading_name'] ?? '',
@@ -31,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         $_POST['country'] ?? 'Tanzania',
         $_POST['registration_number'] ?? '',
         $_POST['tin'] ?? '',
+        $kamId,
+        $kamName
     ]);
     $partnerId = $db->lastInsertId();
 
@@ -53,7 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit') {
         exit;
     }
 
-    $stmt = $db->prepare("UPDATE partners SET name=?, trading_name=?, partner_type=?, status=?, address=?, city_region=?, country=?, registration_number=?, tin=? WHERE id=?");
+    $kamId = (int)($_POST['kam_id'] ?? 0) ?: null;
+    $kamName = null;
+    if ($kamId) {
+        $kStmt = $db->prepare("SELECT full_name FROM users WHERE id = ?");
+        $kStmt->execute([$kamId]);
+        $kamName = $kStmt->fetchColumn() ?: null;
+    }
+
+    $stmt = $db->prepare("UPDATE partners SET name=?, trading_name=?, partner_type=?, status=?, address=?, city_region=?, country=?, registration_number=?, tin=?, kam_id=?, assigned_kam_name=? WHERE id=?");
     $stmt->execute([
         $_POST['name'] ?? '',
         $_POST['trading_name'] ?? '',
@@ -64,12 +93,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit') {
         $_POST['country'] ?? 'Tanzania',
         $_POST['registration_number'] ?? '',
         $_POST['tin'] ?? '',
+        $kamId,
+        $kamName,
         $partnerId,
     ]);
 
     auditLog("Updated partner {$_POST['name']}", 'partners', $partnerId);
     setFlash('success', 'Partner updated successfully.');
     header('Location: ' . APP_URL . '/?page=partners&action=detail&id=' . $partnerId);
+    exit;
+}
+
+// ------------------------------------------------------------------
+// POST: Delete partner (Admin / Management)
+// ------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete') {
+    verifyCsrf();
+    if (!isAdmin() && !hasRole('Management')) {
+        setFlash('danger', 'Access denied. Admin or Management only.');
+        header('Location: ' . APP_URL . '/?page=partners');
+        exit;
+    }
+
+    $partnerId = (int)($_POST['id'] ?? 0);
+    if ($partnerId > 0) {
+        $stmt = $db->prepare("SELECT name FROM partners WHERE id = ?");
+        $stmt->execute([$partnerId]);
+        $pName = $stmt->fetchColumn();
+
+        if ($pName) {
+            $db->prepare("DELETE FROM partners WHERE id = ?")->execute([$partnerId]);
+            $db->prepare("UPDATE users SET partner_id = NULL WHERE partner_id = ?")->execute([$partnerId]);
+            auditLog("Deleted partner $pName (ID: $partnerId)", 'partners', $partnerId);
+            setFlash('success', "Partner <strong>" . e($pName) . "</strong> deleted successfully.");
+        }
+    }
+    header('Location: ' . APP_URL . '/?page=partners');
     exit;
 }
 
@@ -118,6 +177,8 @@ if ($action === 'create' || $action === 'edit') {
         }
     }
 
+    $kamList = $db->query("SELECT id, full_name FROM users WHERE role = 'KAM' AND is_active = 1 ORDER BY full_name")->fetchAll();
+
     $pageTitle = $action === 'create' ? 'New Partner' : 'Edit Partner';
     include APP_DIR . '/views/layout/header.php';
     include APP_DIR . '/views/partners/form.php';
@@ -132,14 +193,20 @@ $page = max(1, (int)($_GET['p'] ?? 1));
 $limit = 20;
 $offset = ($page - 1) * $limit;
 
-$totalStmt = $db->query("SELECT COUNT(*) FROM partners");
+$where = "(kyc_type IS NULL OR kyc_type != 'Contractor') AND (partner_type IS NULL OR partner_type != 'Contractor')";
+
+$totalStmt = $db->query("SELECT COUNT(*) FROM partners WHERE $where");
 $total = (int)$totalStmt->fetchColumn();
 $pages = (int)ceil($total / $limit);
 
-$stmt = $db->query("SELECT * FROM partners ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
+$stmt = $db->query("SELECT * FROM partners WHERE $where ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
 $partners = $stmt->fetchAll();
 
 $pageTitle = 'Partner Management';
 include APP_DIR . '/views/layout/header.php';
 include APP_DIR . '/views/partners/list.php';
 include APP_DIR . '/views/layout/footer.php';
+
+
+
+

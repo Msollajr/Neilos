@@ -131,7 +131,8 @@ $exportUrl = APP_URL . '/?' . http_build_query($exportParams);
         <tr>
           <td class="font-sm text-muted">#<?= $log['id'] ?></td>
           <td class="font-sm white-space-nowrap">
-            <div style="font-weight:600"><?= fmtDate($log['created_at']) ?></div>
+            <div style="font-weight:600"><?= fmtDate($log['created_at'], 'd M Y, H:i:s') ?></div>
+            <div style="font-size:0.75rem;color:var(--text-muted)"><?= timeAgo($log['created_at']) ?></div>
           </td>
           <td>
             <?php if (!empty($log['user_name'])): ?>

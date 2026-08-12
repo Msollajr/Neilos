@@ -1,0 +1,141 @@
+=== SHARED STRINGS (59) ===
+[0] CUSTOMER INFORMATION
+[1] SERVICE REQUEST
+[2] Service Type
+[3] Bandwidth
+[4] Phone
+[5] Email
+[6] SITE DETAILS
+[7] COMMERCIAL
+[8] Prepared By
+[9] New Cross Connect Requred
+[10] A-End Site GPS Cordiantes
+[11] B-End Site GPS Cordiantes
+[12] A-End Street name & City
+[13] B-end Street name & City
+[14] Billing Cycle
+[15] Monthly Charges 
+[16] VAT 18%
+[17] Currency of Payment
+[18] USD to TZS RATE 
+[19] Technical contact Name 
+[20] Billing contact Name
+[21] Name
+[22] Title
+[23] Stamp
+[24] Signature & Date
+[25] SOF Number
+[26] Neilos may suspend the Service as per the terms defined in the MSA, including immediate suspension for regulatory, compliance, commercial, or network security reasons.
+[27] Company  Name (KYC)
+[28]  IPT  
+[29] YES                               
+[30]    NO
+[31] Monthly   
+[32] Initial Remote hands required
+[33] Feasible  
+[34]  Not-Feasible
+[35] SERVICE SUSPENSION 
+[36] DECLARATION 
+[37] Purchaser (Customer)
+[38] MPLS
+[39] SDWAN
+[40] NNI Port Size (1G, 10G, 40G)
+[41] Managed Wi-Fi
+[42] Savanna's tool Feasibility
+[43] TZS
+[44] Service Minimum Term (Months)
+[45] Set-Up Charges ( NRC )
+[46] Total Monthly Charge
+[47] Total Once - Off
+[48] By signing this Service Order Form, the duly authorized representatives of both parties confirm that:
+[49] 1.The information provided in this SOF is accurate and complete.
+[50] 2. The commercial charges stated above shall remain valid for the agreed minimum contract term and are subject to the terms and conditions of the applicable  MSA. 
+[51] SERVICE ORDER FORM (SOF) - NEILOS NETWORK LIMITED						
+[52] NEILOS NETWORK LIMITED INFORMATION
+[53] 4.Neilos Network Limited is authorized to provision, install, and activate the services described in this Service Order Form.
+[54] For Neilos Network Limited
+[55] 3.That this SOF forms part of and is governed by the applicable Master Service Agreement (MSA).
+[56] Layer 2 Last mile
+[57] Dark Fiber
+[58] 5. Acknowledge that the Service shall be deemed accepted and billing starts automatically 72 hours after handover unless the Partner formally requests suspension within that period
+
+=== MERGED CELLS ===
+C3:L10 | M3:P10 | C11:H11 | J11:P11 | D12:H12 | J12:P12 | D13:H13 | J13:P13 | D14:H14 | J14:P14 | D15:H15 | J15:P15 | D16:H16 | J16:P16 | D17:H17 | J17:P17 | D18:H18 | J18:P18 | L30:P30 | E30:H30 | C19:P19 | C20:H20 | J20:P20 | D21:H21 | J21:P21 | C22:C24 | J22:P22 | J23:P23 | J24:P24 | L29:P29 | E29:H29 | J25:P25 | N26:P26 | C27:P27 | J28:P28 | D46:H46 | I46:P46 | E31:H31 | K31:P31 | E32:H32 | K32:P32 | E33:H33 | K33:P33 | C34:P34 | C36:P36 | C37:P37 | C39:P39 | C45:P45 | J47:P47 | J48:P48 | D49:H50 | J49:P50 | D47:H47 | D48:H48 | 
+
+=== SHEET 1 ROWS ===
+Row 1 -> D1:  | F1: 
+Row 2 -> D2:  | F2: 
+Row 3 -> C3: SERVICE ORDER FORM (SOF) - NEILOS NETWORK LIMITED						 | D3:  | E3:  | F3:  | G3:  | H3:  | I3:  | J3:  | K3:  | L3:  | M3:  | N3:  | O3:  | P3: 
+Row 4 -> C4:  | D4:  | E4:  | F4:  | G4:  | H4:  | I4:  | J4:  | K4:  | L4:  | M4:  | N4:  | O4:  | P4: 
+Row 5 -> C5:  | D5:  | E5:  | F5:  | G5:  | H5:  | I5:  | J5:  | K5:  | L5:  | M5:  | N5:  | O5:  | P5: 
+Row 6 -> C6:  | D6:  | E6:  | F6:  | G6:  | H6:  | I6:  | J6:  | K6:  | L6:  | M6:  | N6:  | O6:  | P6: 
+Row 7 -> C7:  | D7:  | E7:  | F7:  | G7:  | H7:  | I7:  | J7:  | K7:  | L7:  | M7:  | N7:  | O7:  | P7: 
+Row 8 -> C8:  | D8:  | E8:  | F8:  | G8:  | H8:  | I8:  | J8:  | K8:  | L8:  | M8:  | N8:  | O8:  | P8: 
+Row 9 -> C9:  | D9:  | E9:  | F9:  | G9:  | H9:  | I9:  | J9:  | K9:  | L9:  | M9:  | N9:  | O9:  | P9: 
+Row 10 -> C10:  | D10:  | E10:  | F10:  | G10:  | H10:  | I10:  | J10:  | K10:  | L10:  | M10:  | N10:  | O10:  | P10: 
+Row 11 -> C11: CUSTOMER INFORMATION | D11:  | E11:  | F11:  | G11:  | H11:  | I11: NEILOS NETWORK LIMITED INFORMATION | J11:  | K11:  | L11:  | M11:  | N11:  | O11:  | P11: 
+Row 12 -> C12: Company  Name (KYC) | D12:  | E12:  | F12:  | G12:  | H12:  | I12: SOF Number | J12:  | K12:  | L12:  | M12:  | N12:  | O12:  | P12: 
+Row 13 -> C13: Technical contact Name  | D13:  | E13:  | F13:  | G13:  | H13:  | I13: Technical contact Name  | J13:  | K13:  | L13:  | M13:  | N13:  | O13:  | P13: 
+Row 14 -> C14: Phone | D14:  | E14:  | F14:  | G14:  | H14:  | I14: Phone | J14:  | K14:  | L14:  | M14:  | N14:  | O14:  | P14: 
+Row 15 -> C15: Email | D15:  | E15:  | F15:  | G15:  | H15:  | I15: Email | J15:  | K15:  | L15:  | M15:  | N15:  | O15:  | P15: 
+Row 16 -> C16: Billing contact Name | D16:  | E16:  | F16:  | G16:  | H16:  | I16: Billing contact Name | J16:  | K16:  | L16:  | M16:  | N16:  | O16:  | P16: 
+Row 17 -> C17: Phone | D17:  | E17:  | F17:  | G17:  | H17:  | I17: Phone | J17:  | K17:  | L17:  | M17:  | N17:  | O17:  | P17: 
+Row 18 -> C18: Email | D18:  | E18:  | F18:  | G18:  | H18:  | I18: Email | J18:  | K18:  | L18:  | M18:  | N18:  | O18:  | P18: 
+Row 19 -> C19:  | D19:  | E19:  | F19:  | G19:  | H19:  | I19:  | J19:  | K19:  | L19:  | M19:  | N19:  | O19:  | P19: 
+Row 20 -> C20: SERVICE REQUEST | D20:  | E20:  | F20:  | G20:  | H20:  | I20: SITE DETAILS | J20:  | K20:  | L20:  | M20:  | N20:  | O20:  | P20: 
+Row 21 -> C21: Bandwidth | D21:  | E21:  | F21:  | G21:  | H21:  | I21: NNI Port Size (1G, 10G, 40G) | J21:  | K21:  | L21:  | M21:  | N21:  | O21:  | P21: 
+Row 22 -> C22: Service Type | D22: Layer 2 Last mile | E22:  | F22:  IPT   | G22:  | H22:  | I22: A-End Site GPS Cordiantes | J22:  | K22:  | L22:  | M22:  | N22:  | O22:  | P22: 
+Row 23 -> C23:  | D23: Dark Fiber | E23:  | F23: SDWAN | G23:  | H23:  | I23: A-End Street name & City | J23:  | K23:  | L23:  | M23:  | N23:  | O23:  | P23: 
+Row 24 -> C24:  | D24: Managed Wi-Fi | E24:  | F24: MPLS | G24:  | H24:  | I24: B-End Site GPS Cordiantes | J24:  | K24:  | L24:  | M24:  | N24:  | O24:  | P24: 
+Row 25 -> C25: Initial Remote hands required | D25: YES                                | E25:  | F25:    NO | G25:  | H25:  | I25: B-end Street name & City | J25:  | K25:  | L25:  | M25:  | N25:  | O25:  | P25: 
+Row 26 -> C26: New Cross Connect Requred | D26: YES                                | E26:  | F26:    NO | G26:  | H26:  | I26: Savanna's tool Feasibility | J26: Feasible   | K26:  | L26:  Not-Feasible | M26:  | N26:  | O26:  | P26: 
+Row 27 -> C27:  | D27:  | E27:  | F27:  | G27:  | H27:  | I27:  | J27:  | K27:  | L27:  | M27:  | N27:  | O27:  | P27: 
+Row 28 -> C28: COMMERCIAL | D28:  | E28:  | F28:  | G28:  | H28:  | I28:  | J28:  | K28:  | L28:  | M28:  | N28:  | O28:  | P28: 
+Row 29 -> C29: Billing Cycle | D29: Monthly    | E29:  | F29:  | G29:  | H29:  | I29: Currency of Payment | J29: TZS | K29:  | L29:  | M29:  | N29:  | O29:  | P29: 
+Row 30 -> C30: Service Minimum Term (Months) | D30: 24 | E30:  | F30:  | G30:  | H30:  | I30: USD to TZS RATE  | J30: 2670 | K30:  | L30:  | M30:  | N30:  | O30:  | P30: 
+Row 31 -> C31: Monthly Charges  | D31: 2200000 | E31:  | F31:  | G31:  | H31:  | I31: Set-Up Charges ( NRC ) | J31: 456000 | K31:  | L31:  | M31:  | N31:  | O31:  | P31: 
+Row 32 -> C32: VAT 18% | D32: 396000 | E32:  | F32:  | G32:  | H32:  | I32: VAT 18% | J32: 82080 | K32:  | L32:  | M32:  | N32:  | O32:  | P32: 
+Row 33 -> C33: Total Monthly Charge | D33: 2596000 | E33:  | F33:  | G33:  | H33:  | I33: Total Once - Off | J33: 538080 | K33:  | L33:  | M33:  | N33:  | O33:  | P33: 
+Row 34 -> C34:  | D34:  | E34:  | F34:  | G34:  | H34:  | I34:  | J34:  | K34:  | L34:  | M34:  | N34:  | O34:  | P34: 
+Row 35 -> C35: SERVICE SUSPENSION  | D35:  | E35:  | F35:  | G35:  | H35:  | I35:  | J35:  | K35:  | L35:  | M35:  | N35:  | O35:  | P35: 
+Row 36 -> C36: Neilos may suspend the Service as per the terms defined in the MSA, including immediate suspension for regulatory, compliance, commercial, or network security reasons. | D36:  | E36:  | F36:  | G36:  | H36:  | I36:  | J36:  | K36:  | L36:  | M36:  | N36:  | O36:  | P36: 
+Row 37 -> C37:  | D37:  | E37:  | F37:  | G37:  | H37:  | I37:  | J37:  | K37:  | L37:  | M37:  | N37:  | O37:  | P37: 
+Row 38 -> C38: DECLARATION  | D38:  | E38:  | F38:  | G38:  | H38:  | I38:  | J38:  | K38:  | L38:  | M38:  | N38:  | O38:  | P38: 
+Row 39 -> C39: By signing this Service Order Form, the duly authorized representatives of both parties confirm that: | D39:  | E39:  | F39:  | G39:  | H39:  | I39:  | J39:  | K39:  | L39:  | M39:  | N39:  | O39:  | P39: 
+Row 40 -> C40: 1.The information provided in this SOF is accurate and complete. | D40:  | E40:  | F40:  | G40:  | H40:  | I40:  | J40:  | K40:  | L40:  | M40:  | N40:  | O40:  | P40: 
+Row 41 -> C41: 2. The commercial charges stated above shall remain valid for the agreed minimum contract term and are subject to the terms and conditions of the applicable  MSA.  | D41:  | E41:  | F41:  | G41:  | H41:  | I41:  | J41:  | K41:  | L41:  | M41:  | N41:  | O41:  | P41: 
+Row 42 -> C42: 3.That this SOF forms part of and is governed by the applicable Master Service Agreement (MSA). | D42:  | E42:  | F42:  | G42:  | H42:  | I42:  | J42:  | K42:  | L42:  | M42:  | N42:  | O42:  | P42: 
+Row 43 -> C43: 4.Neilos Network Limited is authorized to provision, install, and activate the services described in this Service Order Form. | D43:  | E43:  | F43:  | G43:  | H43:  | I43:  | J43:  | K43:  | L43:  | M43:  | N43:  | O43:  | P43: 
+Row 44 -> C44: 5. Acknowledge that the Service shall be deemed accepted and billing starts automatically 72 hours after handover unless the Partner formally requests suspension within that period | D44:  | E44:  | F44:  | G44:  | H44:  | I44:  | J44:  | K44:  | L44:  | M44:  | N44:  | O44:  | P44: 
+Row 45 -> C45:  | D45:  | E45:  | F45:  | G45:  | H45:  | I45:  | J45:  | K45:  | L45:  | M45:  | N45:  | O45:  | P45: 
+Row 46 -> C46: Prepared By | D46: Purchaser (Customer) | E46:  | F46:  | G46:  | H46:  | I46: For Neilos Network Limited | J46:  | K46:  | L46:  | M46:  | N46:  | O46:  | P46: 
+Row 47 -> C47: Name | D47:  | E47:  | F47:  | G47:  | H47:  | I47: Name | J47:  | K47:  | L47:  | M47:  | N47:  | O47:  | P47: 
+Row 48 -> C48: Title | D48:  | E48:  | F48:  | G48:  | H48:  | I48: Title | J48:  | K48:  | L48:  | M48:  | N48:  | O48:  | P48: 
+Row 49 -> C49: Signature & Date | D49:  | E49:  | F49:  | G49:  | H49:  | I49: Signature & Date | J49:  | K49:  | L49:  | M49:  | N49:  | O49:  | P49: 
+Row 50 -> C50: Stamp | D50:  | E50:  | F50:  | G50:  | H50:  | I50: Stamp | J50:  | K50:  | L50:  | M50:  | N50:  | O50:  | P50: 
+Row 51 -> D51:  | F51: 
+Row 52 -> D52:  | F52: 
+Row 53 -> D53:  | F53: 
+Row 54 -> D54:  | F54: 
+Row 55 -> D55:  | F55: 
+Row 56 -> D56:  | F56: 
+Row 57 -> D57:  | F57: 
+Row 58 -> D58:  | F58: 
+Row 59 -> D59:  | F59: 
+Row 60 -> D60:  | F60: 
+Row 61 -> D61:  | F61: 
+Row 62 -> D62:  | F62: 
+Row 63 -> D63:  | F63: 
+Row 64 -> D64:  | F64: 
+Row 65 -> D65:  | F65: 
+Row 66 -> D66:  | F66: 
+Row 67 -> D67:  | F67: 
+Row 68 -> D68:  | F68: 
+Row 69 -> D69:  | F69: 
+Row 70 -> D70:  | F70: 
+Row 71 -> D71:  | F71: 
+Row 72 -> D72:  | F72: 
+Row 73 -> D73:  | F73: 
+Row 74 -> D74:  | F74: 
+Row 75 -> D75:  | F75: 
+Row 76 -> C76:  | D76:  | E76:  | F76:  | G76:  | H76:  | I76:  | J76:  | K76:  | L76:  | M76:  | N76:  | O76:  | P76: 

@@ -6,6 +6,13 @@
   <div class="page-header-actions">
     <a href="<?= APP_URL ?>/?page=partners" class="btn btn-secondary"><?= svgIcon('list') ?> All Partners</a>
     <a href="<?= APP_URL ?>/?page=partners&action=edit&id=<?= $partner['id'] ?>" class="btn btn-primary"><?= svgIcon('edit') ?> Edit Partner</a>
+    <?php if (isAdmin() || hasRole('Management')): ?>
+    <form method="POST" action="<?= APP_URL ?>/?page=partners&action=delete" style="display:inline" data-confirm="Permanently delete partner <?= e($partner['name']) ?>?">
+      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+      <input type="hidden" name="id" value="<?= $partner['id'] ?>">
+      <button type="submit" class="btn btn-danger"><?= svgIcon('trash') ?> Delete Partner</button>
+    </form>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -39,6 +46,7 @@
         <div class="form-group"><label>Partner Name</label><div class="font-600"><?= e($partner['name']) ?></div></div>
         <div class="form-group"><label>Trading Name</label><div><?= e($partner['trading_name'] ?: '—') ?></div></div>
         <div class="form-group"><label>Partner Type</label><div><span class="badge badge-primary"><?= e($partner['partner_type']) ?></span></div></div>
+        <div class="form-group"><label>Assigned KAM</label><div class="font-600" style="color:var(--primary)"><?= e($partner['assigned_kam_name'] ?: 'Not Assigned') ?></div></div>
         <div class="form-group"><label>Status</label><div>
           <?php if ($partner['status'] === 'Active'): ?>
           <span class="badge badge-success">Active</span>

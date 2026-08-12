@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@600;700;800&display=swap">
   <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/portal.css?v=<?= time() ?>">
   <link rel="icon" type="image/png" href="<?= APP_URL ?>/favicon.ico?v=2">
-  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('neilos-theme')||'light');</script>
+  <script>document.documentElement.setAttribute('data-theme','light');</script>
 </head>
 <body>
 <div class="login-page">

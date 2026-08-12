@@ -9,7 +9,19 @@
  */
 function getSLAMinutes(string $serviceType, string $severity): array {
     $matrix = [
+        'BIA (Broadband Internet Access)' => [
+            'Sev 1' => ['response' =>  30,  'resolution' =>  480],
+            'Sev 2' => ['response' =>  60,  'resolution' => 1440],
+            'Sev 3' => ['response' => 120,  'resolution' => 2880],
+            'Sev 4' => ['response' => 240,  'resolution' => 4320],
+        ],
         'DIA'                => [
+            'Sev 1' => ['response' =>  30,  'resolution' =>  480],
+            'Sev 2' => ['response' =>  60,  'resolution' => 1440],
+            'Sev 3' => ['response' => 120,  'resolution' => 2880],
+            'Sev 4' => ['response' => 240,  'resolution' => 4320],
+        ],
+        'Layer 2 ( last mile)' => [
             'Sev 1' => ['response' =>  30,  'resolution' =>  480],
             'Sev 2' => ['response' =>  60,  'resolution' => 1440],
             'Sev 3' => ['response' => 120,  'resolution' => 2880],
@@ -43,149 +55,11 @@ function getSLAMinutes(string $serviceType, string $severity): array {
     return $matrix[$serviceType][$severity] ?? ['response' => 240, 'resolution' => 4320];
 }
 
-/**
- * Calculate current SLA consumption percentage for a ticket.
- * Accounts for clock pause (awaiting customer confirmation).
- */
-function calculateSLAPct(array $ticket): float {
-    if (!$ticket['resolution_time_mins']) return 0.0;
 
-    // Minutes already consumed before any pause
-    $consumed = (int)($ticket['sla_clock_consumed_mins'] ?? 0);
 
-    // If clock is running (not paused), add elapsed since ticket created (or last resume)
-    if ($ticket['status'] !== 'Resolved - Awaiting Customer Confirmation' && $ticket['status'] !== 'Closed') {
-        $createdAt = strtotime($ticket['created_at']);
-        $pausedAt  = $ticket['sla_clock_stopped_at'] ? strtotime($ticket['sla_clock_stopped_at']) : null;
+// generateOrderNumber() is defined in app/helpers/format.php (FR- prefix, v1.0)
 
-        if ($pausedAt) {
-            // We already counted up to sla_clock_stopped_at in sla_clock_consumed_mins
-            // Clock is paused so don't add more
-        } else {
-            $elapsed   = (int)floor((time() - $createdAt) / 60);
-            $consumed  = $elapsed;
-        }
-    }
 
-    return round(($consumed / $ticket['resolution_time_mins']) * 100, 2);
-}
-
-/**
- * Determine SLA status label from percentage consumed.
- */
-function getSLAStatusLabel(float $pct): string {
-    if ($pct >= 125) return 'Critical Breach';
-    if ($pct >= 100) return 'Breached';
-    if ($pct >= 80)  return 'Warning';
-    return 'Normal';
-}
-
-/**
- * Evaluate SLA escalation for a ticket and trigger escalations if needed.
- * Returns the updated SLA status.
- */
-function evaluateTicketSLA(int $ticketId): string {
-    $db = getDB();
-    $stmt = $db->prepare('SELECT * FROM trouble_tickets WHERE id = ?');
-    $stmt->execute([$ticketId]);
-    $ticket = $stmt->fetch();
-
-    if (!$ticket || in_array($ticket['status'], ['Closed', 'Resolved - Awaiting Customer Confirmation'])) {
-        return $ticket['sla_status'] ?? 'Normal';
-    }
-
-    $pct = calculateSLAPct($ticket);
-    $status = getSLAStatusLabel($pct);
-
-    // Determine escalation needed
-    $currentQueue = $ticket['current_queue'];
-    $newQueue = $currentQueue;
-
-    if ($pct >= 125 && $currentQueue !== 'Director') {
-        $newQueue = 'Director';
-        createEscalation($ticketId, $ticket, 3, $currentQueue, 'Director', $pct);
-    } elseif ($pct >= 100 && !in_array($currentQueue, ['NOC Level 3', 'Director'])) {
-        $newQueue = 'NOC Level 3';
-        createEscalation($ticketId, $ticket, 2, $currentQueue, 'NOC Level 3', $pct);
-    } elseif ($pct >= 80 && $currentQueue === 'NOC Support') {
-        $newQueue = 'NOC Core';
-        createEscalation($ticketId, $ticket, 1, $currentQueue, 'NOC Core', $pct);
-    }
-
-    // Update ticket
-    $update = $db->prepare('UPDATE trouble_tickets SET sla_pct_consumed = ?, sla_status = ?, current_queue = ? WHERE id = ?');
-    $update->execute([$pct, $status, $newQueue, $ticketId]);
-
-    return $status;
-}
-
-/**
- * Create an escalation record and notification queue entries.
- */
-function createEscalation(int $ticketId, array $ticket, int $level, string $fromQueue, string $toQueue, float $pct): void {
-    $db = getDB();
-
-    // Generate ESC number
-    $escNum = generateEscNumber();
-
-    // Check if this escalation level already exists
-    $check = $db->prepare('SELECT id FROM ticket_escalations WHERE ticket_id = ? AND escalation_level = ?');
-    $check->execute([$ticketId, $level]);
-    if ($check->fetch()) return; // Already escalated at this level
-
-    $stmt = $db->prepare('INSERT INTO ticket_escalations (esc_number, ticket_id, escalation_level, from_queue, to_queue, sla_pct) VALUES (?,?,?,?,?,?)');
-    $stmt->execute([$escNum, $ticketId, $level, $fromQueue, $toQueue, $pct]);
-    $escId = $db->lastInsertId();
-
-    // Log timeline
-    $tl = $db->prepare('INSERT INTO ticket_timeline (ticket_id, action, status, queue, note, changed_by) VALUES (?,?,?,?,?,NULL)');
-    $tl->execute([$ticketId, "Escalated to $toQueue", $ticket['status'], $toQueue, "SLA at {$pct}% — escalation $escNum created."]);
-
-    // Queue notification
-    $msg = "Ticket {$ticket['ticket_number']} has been escalated to $toQueue. SLA consumed: {$pct}%. ESC: $escNum.";
-    $notif = $db->prepare('INSERT INTO ticket_notifications (ticket_id, escalation_id, notification_type, recipient, subject, message) VALUES (?,?,?,?,?,?)');
-    $notif->execute([$ticketId, $escId, 'Email', 'noc@neilosnetwork.co.tz', "Escalation: {$ticket['ticket_number']}", $msg]);
-    $notif->execute([$ticketId, $escId, 'WhatsApp', 'noc@neilosnetwork.co.tz', "Escalation: {$ticket['ticket_number']}", $msg]);
-}
-
-/**
- * Generate TT-YYMMDD-XXX format ticket number.
- */
-function generateTicketNumber(): string {
-    $db   = getDB();
-    $date = date('ymd');
-    $stmt = $db->prepare("SELECT ticket_number FROM trouble_tickets WHERE ticket_number LIKE ? ORDER BY ticket_number DESC LIMIT 1");
-    $stmt->execute(["TT-$date-%"]);
-    $last = $stmt->fetchColumn();
-    $seq  = $last ? ((int)substr($last, -3) + 1) : 1;
-    return sprintf('TT-%s-%03d', $date, $seq);
-}
-
-/**
- * Generate ESC-YYMMDD-XXX format escalation number.
- */
-function generateEscNumber(): string {
-    $db   = getDB();
-    $date = date('ymd');
-    $stmt = $db->prepare("SELECT esc_number FROM ticket_escalations WHERE esc_number LIKE ? ORDER BY esc_number DESC LIMIT 1");
-    $stmt->execute(["ESC-$date-%"]);
-    $last = $stmt->fetchColumn();
-    $seq  = $last ? ((int)substr($last, -3) + 1) : 1;
-    return sprintf('ESC-%s-%03d', $date, $seq);
-}
-
-/**
- * Generate SO-YYMMDD-XXX format order number.
- */
-function generateOrderNumber(): string {
-    $db   = getDB();
-    $date = date('ymd');
-    $stmt = $db->prepare("SELECT order_number FROM orders WHERE order_number LIKE ? ORDER BY order_number DESC LIMIT 1");
-    $stmt->execute(["SO-$date-%"]);
-    $last = $stmt->fetchColumn();
-    $seq  = $last ? ((int)substr($last, -3) + 1) : 1;
-    return sprintf('SO-%s-%03d', $date, $seq);
-}
 
 /**
  * Generate SVC-YYMMDD-XXX format service ID.
@@ -211,3 +85,51 @@ function slaBadgeClass(string $status): string {
         default           => 'badge-success',
     };
 }
+
+/**
+ * Auto-accept UAT orders when 72-hour deadline expires.
+ */
+function checkUatAutoAccept(PDO $db): int {
+    try {
+        $stmt = $db->query("SELECT * FROM orders WHERE status = 'UAT' AND uat_deadline IS NOT NULL AND uat_deadline <= NOW()");
+        if (!$stmt) return 0;
+        $expiredOrders = $stmt->fetchAll();
+        $autoAcceptedCount = 0;
+
+        foreach ($expiredOrders as $order) {
+            $orderId = (int)$order['id'];
+            $today   = date('Y-m-d');
+
+            $db->prepare("UPDATE orders SET status = 'Closed', closed_date = ?, billing_start_date = ?, activation_date = ?, uat_accepted_at = NOW(), updated_at = NOW() WHERE id = ? AND status = 'UAT'")
+               ->execute([$today, $today, $today, $orderId]);
+
+            $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,NULL)")
+               ->execute([$orderId, 'Closed', "Service automatically accepted after the 72-hour UAT acceptance window expired. Order closed. Closed Date: $today. Billing Start Date: $today."]);
+
+            // Create Active Service record if not exists
+            $svcCheck = $db->prepare("SELECT id FROM active_services WHERE order_id = ?");
+            $svcCheck->execute([$orderId]);
+            if (!$svcCheck->fetch()) {
+                $serviceId = 'SVC-' . date('ymd') . '-' . str_pad($orderId, 3, '0', STR_PAD_LEFT);
+                $circuitId = 'CKT-' . $order['order_number'];
+                $db->prepare("INSERT INTO active_services (service_id, order_id, partner_id, customer_name, service_type, circuit_id, bandwidth_capacity, location, building_name, kam_id, activation_date, billing_start_date, status, monitoring_status)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE order_id=order_id")->execute([
+                    $serviceId, $orderId, $order['partner_id'], $order['customer_name'], $order['service_type'],
+                    $circuitId, $order['bandwidth'] ?: ($order['fttx_package'] ?? ''), $order['customer_location'] ?? '', $order['building_name'] ?? '',
+                    $order['kam_id'] ?? null, $today, $today, 'Active', 'Online'
+                ]);
+                $db->prepare("UPDATE orders SET service_id = ?, circuit_id = ? WHERE id = ? AND service_id IS NULL")
+                   ->execute([$serviceId, $circuitId, $orderId]);
+            }
+
+            queueOrderNotification($orderId, 'Partner Accepted Service');
+            auditLog("UAT 72-hour deadline expired — auto-accepted order #{$order['order_number']}", 'orders', $orderId);
+            $autoAcceptedCount++;
+        }
+
+        return $autoAcceptedCount;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+

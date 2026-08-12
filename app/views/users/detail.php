@@ -6,11 +6,18 @@
   <div class="page-header-actions">
     <a href="<?= APP_URL ?>/?page=users" class="btn btn-secondary"><?= svgIcon('list') ?> All Users</a>
     <a href="<?= APP_URL ?>/?page=users&action=edit&id=<?= $profile['id'] ?>" class="btn btn-primary"><?= svgIcon('edit') ?> Edit User</a>
-    <form method="POST" action="<?= APP_URL ?>/?page=users&action=reset_password" style="display:inline" onsubmit="return confirm('Reset password for <?= e($profile['full_name']) ?> to Chang3Me!?')">
+    <form method="POST" action="<?= APP_URL ?>/?page=users&action=reset_password" style="display:inline" data-confirm="Reset password for <?= e($profile['full_name']) ?> to Chang3Me!?">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="id" value="<?= $profile['id'] ?>">
       <button type="submit" class="btn btn-secondary"><?= svgIcon('refresh') ?> Reset Password</button>
     </form>
+    <?php if ((isAdmin() || hasRole('Management')) && $profile['id'] !== currentUser()['id']): ?>
+    <form method="POST" action="<?= APP_URL ?>/?page=users&action=delete" style="display:inline" data-confirm="Permanently delete user <?= e($profile['full_name']) ?>?">
+      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+      <input type="hidden" name="id" value="<?= $profile['id'] ?>">
+      <button type="submit" class="btn btn-danger"><?= svgIcon('trash') ?> Delete User</button>
+    </form>
+    <?php endif; ?>
   </div>
 </div>
 

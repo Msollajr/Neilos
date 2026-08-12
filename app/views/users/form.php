@@ -45,20 +45,21 @@
         <div class="form-group">
           <label for="role">Role <span class="text-danger">*</span></label>
           <select id="role" name="role" class="form-control" required>
+            <?php 
+              $userRoleVal = $profile['role'] ?? '';
+              if ($userRoleVal === 'Partner User' || ($userRoleVal === '' && !empty($profile['partner_id']))) {
+                  $userRoleVal = 'Partner';
+              } elseif ($userRoleVal === 'Contractor User') {
+                  $userRoleVal = 'Contractor';
+              }
+              if (!$userRoleVal) {
+                  $userRoleVal = 'Partner';
+              }
+            ?>
             <?php foreach ($roles as $r): ?>
-            <option value="<?= e($r) ?>" <?= ($profile['role'] ?? 'Partner User') === $r ? 'selected' : '' ?>><?= e($r) ?></option>
+            <option value="<?= e($r) ?>" <?= $userRoleVal === $r ? 'selected' : '' ?>><?= e($r) ?></option>
             <?php endforeach; ?>
           </select>
-        </div>
-        <div class="form-group">
-          <label for="partner_id">Partner</label>
-          <select id="partner_id" name="partner_id" class="form-control">
-            <option value="">— None (Internal User) —</option>
-            <?php foreach ($partners as $p): ?>
-            <option value="<?= $p['id'] ?>" <?= ($profile['partner_id'] ?? 0) == $p['id'] ? 'selected' : '' ?>><?= e($p['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-          <small style="color:var(--text-muted)">Select a partner for Partner User role.</small>
         </div>
       </div>
 
@@ -74,7 +75,72 @@
       </div>
       <?php endif; ?>
 
-      <div style="display:flex;gap:10px;margin-top:20px">
+      <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div>
+            <h3 style="font-size:1.05rem;font-weight:700;margin:0;color:var(--text-primary)">MODULE ACCESS &amp; PERMISSIONS</h3>
+            <p style="font-size:0.83rem;color:var(--text-secondary);margin:2px 0 0">
+              Grant explicit module and action permissions to this user. Unchecking modules completely hides them from the sidebar and blocks backend access.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllPermissions()">[ Select All ]</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllPermissions()">[ Clear All ]</button>
+          </div>
+        </div>
+
+        <input type="hidden" name="has_custom_permissions" value="1">
+
+        <?php
+        $catalog = getAllPermissionCatalog();
+        $userPerms = getUserPermissions($profile ?? []);
+        $isCustom = !empty($profile['permissions']);
+        ?>
+
+        <div style="margin-bottom:14px">
+          <label class="form-check" style="display:inline-flex;align-items:center;gap:8px;font-size:0.88rem;font-weight:600">
+            <input type="checkbox" id="toggle_custom_perms" name="toggle_custom_perms" value="1" onchange="toggleCustomPermissions(this.checked)" <?= $isCustom ? 'checked' : '' ?>>
+            <span>Enable Custom User Permission Overrides (Overrides Role Defaults)</span>
+          </label>
+        </div>
+
+        <div id="permissions_container" style="<?= $isCustom ? '' : 'display:none;' ?>background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px">
+          <?php foreach ($catalog as $category => $permList): ?>
+          <div style="margin-bottom:16px">
+            <div style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--primary);margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px">
+              <?= e($category) ?>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:8px 16px">
+              <?php foreach ($permList as $pKey => $pLabel): ?>
+              <label class="form-check" style="display:flex;align-items:center;gap:8px;font-size:0.85rem">
+                <input type="checkbox" class="perm-cb" name="permissions[]" value="<?= e($pKey) ?>" <?= in_array($pKey, $userPerms, true) ? 'checked' : '' ?>>
+                <span><?= e($pLabel) ?></span>
+              </label>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <script>
+      function selectAllPermissions() {
+          document.getElementById('toggle_custom_perms').checked = true;
+          toggleCustomPermissions(true);
+          document.querySelectorAll('.perm-cb').forEach(cb => cb.checked = true);
+      }
+      function clearAllPermissions() {
+          document.getElementById('toggle_custom_perms').checked = true;
+          toggleCustomPermissions(true);
+          document.querySelectorAll('.perm-cb').forEach(cb => cb.checked = false);
+      }
+      function toggleCustomPermissions(enabled) {
+          const container = document.getElementById('permissions_container');
+          if (container) container.style.display = enabled ? 'block' : 'none';
+      }
+      </script>
+
+      <div style="display:flex;gap:10px;margin-top:24px">
         <button type="submit" class="btn btn-primary"><?= svgIcon($action === 'create' ? 'plus' : 'edit') ?> <?= $action === 'create' ? 'Create User' : 'Save Changes' ?></button>
         <a href="<?= APP_URL ?>/?page=users" class="btn btn-secondary">Cancel</a>
       </div>

@@ -45,7 +45,6 @@
           <th>Username</th>
           <th>Email</th>
           <th>Role</th>
-          <th>Partner</th>
           <th>Status</th>
           <th>Last Login</th>
           <th>Created</th>
@@ -54,15 +53,24 @@
       </thead>
       <tbody>
         <?php if (empty($users)): ?>
-        <tr><td colspan="9"><div class="empty-state"><?= svgIcon('users', 32) ?><div class="empty-state-title">No users found</div><div class="empty-state-text">Try adjusting your filters or create a new user.</div></div></td></tr>
+        <tr><td colspan="8"><div class="empty-state"><?= svgIcon('users', 32) ?><div class="empty-state-title">No users found</div><div class="empty-state-text">Try adjusting your filters or create a new user.</div></div></td></tr>
         <?php else: ?>
         <?php foreach ($users as $u): ?>
         <tr>
           <td><a href="<?= APP_URL ?>/?page=users&action=detail&id=<?= $u['id'] ?>" class="font-600" style="color:var(--primary)"><?= e($u['full_name']) ?></a></td>
           <td class="font-sm"><?= e($u['username']) ?></td>
           <td class="font-sm"><?= e($u['email']) ?></td>
-          <td><span class="badge badge-primary"><?= e($u['role']) ?></span></td>
-          <td class="font-sm"><?= e($u['partner_name'] ?: '—') ?></td>
+          <td>
+            <?php 
+              $displayRole = $u['role'] ?? '';
+              if (empty($displayRole) || $displayRole === 'Partner User') {
+                  $displayRole = 'Partner';
+              } elseif ($displayRole === 'Contractor User') {
+                  $displayRole = 'Contractor';
+              }
+            ?>
+            <span class="badge badge-primary"><?= e($displayRole) ?></span>
+          </td>
           <td>
             <?php if ($u['is_active']): ?>
             <span class="badge badge-success">Active</span>
@@ -76,13 +84,20 @@
             <div class="actions">
               <a href="<?= APP_URL ?>/?page=users&action=detail&id=<?= $u['id'] ?>" class="btn btn-secondary btn-sm btn-icon" title="View"><?= svgIcon('eye') ?></a>
               <a href="<?= APP_URL ?>/?page=users&action=edit&id=<?= $u['id'] ?>" class="btn btn-secondary btn-sm btn-icon" title="Edit"><?= svgIcon('edit') ?></a>
-              <form method="POST" action="<?= APP_URL ?>/?page=users&action=toggle_status" style="display:inline" onsubmit="return confirm('<?= $u['is_active'] ? 'Deactivate' : 'Activate' ?> this user?')">
+              <form method="POST" action="<?= APP_URL ?>/?page=users&action=toggle_status" style="display:inline" data-confirm="<?= $u['is_active'] ? 'Deactivate' : 'Activate' ?> this user?">
                 <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                 <input type="hidden" name="id" value="<?= $u['id'] ?>">
                 <button type="submit" class="btn btn-sm <?= $u['is_active'] ? 'btn-secondary' : 'btn-primary' ?> btn-icon" title="<?= $u['is_active'] ? 'Deactivate' : 'Activate' ?>">
                   <?= svgIcon($u['is_active'] ? 'x' : 'check') ?>
                 </button>
               </form>
+              <?php if ((isAdmin() || hasRole('Management')) && $u['id'] !== currentUser()['id']): ?>
+              <form method="POST" action="<?= APP_URL ?>/?page=users&action=delete" style="display:inline" data-confirm="Permanently delete user <?= e($u['full_name']) ?>?">
+                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete User"><?= svgIcon('trash') ?></button>
+              </form>
+              <?php endif; ?>
             </div>
           </td>
         </tr>

@@ -47,23 +47,4 @@
     </div>
   </div>
 
-  <!-- Tickets Report -->
-  <div class="card">
-    <div class="card-body" style="padding:24px;text-align:center">
-      <div style="font-size:2.5rem;margin-bottom:12px;color:var(--danger)"><?= svgIcon('ticket', 36) ?></div>
-      <div class="card-title" style="margin-bottom:4px">Tickets Report</div>
-      <p class="text-secondary font-sm" style="margin-bottom:16px">All tickets with partner, service, queue, severity, SLA, and status.</p>
-      <a href="?page=reports&action=tickets" class="btn btn-primary"><?= svgIcon('download') ?> Download CSV</a>
-    </div>
-  </div>
-
-  <!-- Ticket SLA Report -->
-  <div class="card">
-    <div class="card-body" style="padding:24px;text-align:center">
-      <div style="font-size:2.5rem;margin-bottom:12px;color:var(--accent)"><?= svgIcon('chart', 36) ?></div>
-      <div class="card-title" style="margin-bottom:4px">Ticket SLA Report</div>
-      <p class="text-secondary font-sm" style="margin-bottom:16px">Ticket response/resolution times and SLA compliance data.</p>
-      <a href="?page=reports&action=ticket_sla" class="btn btn-primary"><?= svgIcon('download') ?> Download CSV</a>
-    </div>
-  </div>
 </div>

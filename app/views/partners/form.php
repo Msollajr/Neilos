@@ -40,6 +40,15 @@
           </select>
         </div>
         <div class="form-group">
+          <label for="kam_id">Assigned KAM</label>
+          <select id="kam_id" name="kam_id" class="form-control">
+            <option value="">— Select KAM —</option>
+            <?php foreach ($kamList as $k): ?>
+            <option value="<?= $k['id'] ?>" <?= (($partner['kam_id'] ?? 0) == $k['id']) ? 'selected' : '' ?>><?= e($k['full_name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="form-group">
           <label for="status">Status <span class="text-danger">*</span></label>
           <select id="status" name="status" class="form-control" required>
             <option value="Active" <?= ($partner['status'] ?? '') === 'Active' ? 'selected' : '' ?>>Active</option>
