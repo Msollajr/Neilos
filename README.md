@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0F4C81&height=200&section=header&text=Neilos%20Portal&fontSize=60&fontColor=FFFFFF&animation=fadeIn&fontAlignY=38&desc=Enterprise%20Partner%20%26%20Contractor%20Management&descAlignY=58&descAlign=50&descSize=18" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&amp;color=0F4C81&amp;height=200&amp;section=header&amp;text=Neilos%20Portal&amp;fontSize=60&amp;fontColor=FFFFFF&amp;animation=fadeIn&amp;fontAlignY=38&amp;desc=Enterprise%20Partner%20%26%20Contractor%20Management&amp;descAlignY=58&amp;descAlign=50&amp;descSize=18" width="100%"/>
 
 <br/>
 
@@ -9,18 +9,18 @@
 <br/>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.0-0F4C81?style=for-the-badge&logo=v&logoColor=white"/>
-  <img src="https://img.shields.io/badge/PHP-8.x-777BB4?style=for-the-badge&logo=php&logoColor=white"/>
-  <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white"/>
-  <img src="https://img.shields.io/badge/XAMPP-Ready-FB7A24?style=for-the-badge&logo=apache&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Theme-Enterprise%20Light-28A745?style=for-the-badge&logo=css3&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Version-1.0-0F4C81?style=for-the-badge&amp;logo=v&amp;logoColor=white"/>
+  <img src="https://img.shields.io/badge/PHP-8.x-777BB4?style=for-the-badge&amp;logo=php&amp;logoColor=white"/>
+  <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&amp;logo=mysql&amp;logoColor=white"/>
+  <img src="https://img.shields.io/badge/XAMPP-Ready-FB7A24?style=for-the-badge&amp;logo=apache&amp;logoColor=white"/>
+  <img src="https://img.shields.io/badge/Theme-Enterprise%20Light-28A745?style=for-the-badge&amp;logo=css3&amp;logoColor=white"/>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/RBAC-8%20Roles-DC143C?style=for-the-badge&logo=shield&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Responsive-All%20Devices-17A2B8?style=for-the-badge&logo=google-chrome&logoColor=white"/>
-  <img src="https://img.shields.io/badge/SLA-Auto%20Monitoring-FFC107?style=for-the-badge&logo=clockify&logoColor=black"/>
-  <img src="https://img.shields.io/badge/Charts-Interactive-6F42C1?style=for-the-badge&logo=chartdotjs&logoColor=white"/>
+  <img src="https://img.shields.io/badge/RBAC-8%20Roles-DC143C?style=for-the-badge&amp;logo=shield&amp;logoColor=white"/>
+  <img src="https://img.shields.io/badge/Responsive-All%20Devices-17A2B8?style=for-the-badge&amp;logo=google-chrome&amp;logoColor=white"/>
+  <img src="https://img.shields.io/badge/SLA-Auto%20Monitoring-FFC107?style=for-the-badge&amp;logo=clockify&amp;logoColor=black"/>
+  <img src="https://img.shields.io/badge/Charts-Interactive-6F42C1?style=for-the-badge&amp;logo=chartdotjs&amp;logoColor=white"/>
 </p>
 
 </div>
@@ -34,7 +34,7 @@
 | | Section | | Section |
 |:---:|:---|:---:|:---|
 | 🏗️ | [Architecture Overview](#️-architecture-overview) | 📋 | [Core Modules](#-core-modules) |
-| 🛠️ | [Setup Instructions](#️-setup-instructions) | ⏰ | [Cron Jobs & Automation](#-cron-jobs--automation) |
+| 🛠️ | [Setup Instructions](#️-setup-instructions) | ⏰ | [Cron Jobs &amp; Automation](#-cron-jobs--automation) |
 | 🔐 | [Default Credentials](#-default-system-credentials) | 🎨 | [Design System](#-design-system) |
 
 </div>
@@ -90,7 +90,7 @@
 </details>
 
 <details>
-<summary><b>📱 2. Adaptive & Fully Responsive Design</b></summary>
+<summary><b>📱 2. Adaptive &amp; Fully Responsive Design</b></summary>
 
 <br/>
 
@@ -108,13 +108,13 @@
 </details>
 
 <details>
-<summary><b>📊 3. Interactive Analytics & Vertical Column Charts</b></summary>
+<summary><b>📊 3. Interactive Analytics &amp; Vertical Column Charts</b></summary>
 
 <br/>
 
 - **Service Type Distribution** — vertical bar graph
 - **Order Status Distribution** — vertical bar graph
-- **Network & Service Health** — vertical bar graph
+- **Network &amp; Service Health** — vertical bar graph
 - Custom `barTopValuePlugin` renders exact counts **above** each bar
 - **Click-to-filter** drill-down on chart columns filters orders dynamically
 
@@ -125,7 +125,7 @@
 
 <br/>
 
-- Admin & Management users can **delete** KYC applications via confirmation modal
+- Admin &amp; Management users can **delete** KYC applications via confirmation modal
 - **Instant AJAX UI update** — row removed from DOM, count updated, toast displayed — no page refresh
 - All deletions write to `audit_logs` with server-side **403 authorization enforcement**
 
@@ -201,7 +201,7 @@ DocumentRoot "/path/to/Neilos/public"
 | `pm` | `Admin@1234` | 📋 Project Manager | Project Manager | Internal Delivery Lead |
 | `noc_support` | `Admin@1234` | 🖥️ NOC Support | NOC Support Lead | NOC Operations |
 | `commercial_dir` | `Admin@1234` | 💼 Commercial | Commercial Director | Executive / Commercial |
-| `billing` | `Admin@1234` | 💰 Billing | Finance / Billing | Finance & Billing |
+| `billing` | `Admin@1234` | 💰 Billing | Finance / Billing | Finance &amp; Billing |
 | `partner_fastnet` | `Admin@1234` | 🌐 Partner User | Partner Admin (FastNet) | FastNet Communications Ltd |
 | `partner_afrilink` | `Admin@1234` | 🌐 Partner User | Partner Admin (Afrilink) | Afrilink Solutions Ltd |
 | `contractor1` | `Admin@1234` | 🔨 Contractor | Contractor Admin | Fiber Works Ltd |
@@ -223,7 +223,7 @@ DocumentRoot "/path/to/Neilos/public"
 | ⏱️ **SLA Tracking** | Stage-by-stage duration tracking and breach monitoring |
 | 📡 **Active Services** | Active service inventory and customer circuit management |
 | 🎫 **Trouble Tickets** | Incident management with SLA clocks, escalation rules, and NOC queues |
-| 🪪 **KYC Applications** | Partner & contractor compliance management with review workflows |
+| 🪪 **KYC Applications** | Partner &amp; contractor compliance management with review workflows |
 | 🏗️ **Projects** | Field delivery project tracking and contractor job assignments |
 | 🤝 **Partner Management** | Partner company profiles and status controls *(Admin only)* |
 | 🔨 **Contractors Management** | Contractor profiles, capabilities, and job assignments *(Admin only)* |
@@ -274,7 +274,7 @@ Add these entries to your server crontab for automated SLA evaluation and ticket
 
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0F4C81&height=120&section=footer&animation=fadeIn" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&amp;color=0F4C81&amp;height=120&amp;section=footer&amp;animation=fadeIn" width="100%"/>
 
 <sub>Built with ❤️ for enterprise-grade telecom &amp; ISP service delivery operations.</sub>
 
