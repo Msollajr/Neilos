@@ -4,7 +4,7 @@
 
 <br/>
 
-[![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=22&pause=1000&color=0F4C81&center=true&vCenter=true&random=false&width=700&lines=🚀+Enterprise+Telecom+%26+ISP+Portal;📦+Multi-Role+Order+Management+System;📊+Real-Time+Analytics+%26+SLA+Tracking;🔐+Fine-Grained+Role+Based+Access+Control;⚡+Built+for+High-Performance+Service+Delivery)](https://git.io/typing-svg)
+<a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&amp;size=22&amp;pause=1000&amp;color=0F4C81&amp;center=true&amp;vCenter=true&amp;random=false&amp;width=700&amp;lines=%F0%9F%9A%80+Enterprise+Telecom+%26+ISP+Portal;%F0%9F%93%A6+Multi-Role+Order+Management+System;%F0%9F%93%8A+Real-Time+Analytics+%26+SLA+Tracking;%F0%9F%94%90+Fine-Grained+Role+Based+Access+Control;%E2%9A%A1+Built+for+High-Performance+Service+Delivery" alt="Typing SVG"/></a>
 
 <br/>
 
@@ -65,7 +65,7 @@
 
 ---
 
-## ✨ Key Features & Highlights
+## ✨ Key Features &amp; Highlights
 
 <details>
 <summary><b>🎨 1. Permanent Enterprise Light Theme</b></summary>
@@ -234,7 +234,7 @@ DocumentRoot "/path/to/Neilos/public"
 
 ---
 
-## ⏰ Cron Jobs & Automation
+## ⏰ Cron Jobs &amp; Automation
 
 Add these entries to your server crontab for automated SLA evaluation and ticket workflows:
 
