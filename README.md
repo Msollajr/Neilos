@@ -247,10 +247,10 @@ Add these entries to your server crontab for automated SLA evaluation and ticket
 # │ │ │ │ │
 
 # Evaluate Ticket SLA every 5 minutes
-*/5 * * * * curl http://localhost/Neilos/public/?page=tickets&action=evaluate_sla
+*/5 * * * * curl "http://localhost/Neilos/public/?page=tickets&amp;action=evaluate_sla"
 
 # Auto-close tickets awaiting >24h customer confirmation — runs hourly
-0 * * * * curl http://localhost/Neilos/public/?page=tickets&action=auto_close
+0 * * * * curl "http://localhost/Neilos/public/?page=tickets&amp;action=auto_close"
 ```
 
 ---
