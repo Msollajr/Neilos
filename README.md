@@ -1,3 +1,5 @@
+[//]: # (Neilos Portal — README)
+
 <div align="center">
 
 <img src="https://capsule-render.vercel.app/api?type=waving&amp;color=0F4C81&amp;height=200&amp;section=header&amp;text=Neilos%20Portal&amp;fontSize=60&amp;fontColor=FFFFFF&amp;animation=fadeIn&amp;fontAlignY=38&amp;desc=Enterprise%20Partner%20%26%20Contractor%20Management&amp;descAlignY=58&amp;descAlign=50&amp;descSize=18" width="100%"/>
