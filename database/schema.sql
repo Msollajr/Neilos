@@ -188,7 +188,7 @@ CREATE TABLE orders (
     end_user_address            TEXT NOT NULL,
     city_region                 VARCHAR(100) NOT NULL,
     gps_coordinates             VARCHAR(100),
-    site_category               ENUM('Home (SDU)','SME','Enterprise','Apartment (MDU)','Corporate','Tower','Datacenter') NULL,
+    site_category               VARCHAR(100) NULL,
     interface_type              VARCHAR(50) DEFAULT 'SFP',
     connector_type              VARCHAR(50) DEFAULT 'LC',
     media_type                  VARCHAR(50) DEFAULT 'Single-mode Fiber',
@@ -224,28 +224,7 @@ CREATE TABLE orders (
     returned_at                 DATETIME NULL,
     contract_term_months        INT UNSIGNED DEFAULT 12,
     service_type                VARCHAR(100) NOT NULL DEFAULT 'FTTH',
-    status                      ENUM(
-                                    'Feasibility Review',
-                                    'Await Commercial Approval',
-                                    'Management Approval',
-                                    'Pending SOF',
-                                    'SOF Review',
-                                    'Installation',
-                                    'Testing',
-                                    'UAT',
-                                    'Closed',
-                                    'Submitted',
-                                    'Awaiting BSA Approval',
-                                    'Awaiting Commercial Approval',
-                                    'Awaiting Management Approval',
-                                    'Approved',
-                                    'Provisioning',
-                                    'UAT - Awaiting Confirmation',
-                                    'Activated',
-                                    'Billing Triggered',
-                                    'Cancelled',
-                                    'Not Feasible'
-                                ) NOT NULL DEFAULT 'Feasibility Review',
+    status                      VARCHAR(100) NOT NULL DEFAULT 'Feasibility Review',
     bsa_reviewed_by             INT UNSIGNED,
     bsa_reviewed_at             DATETIME,
     bsa_feasi_approved          TINYINT(1),
@@ -389,7 +368,7 @@ CREATE TABLE contractor_assignments (
     assigned_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     target_date           DATE NULL,
     work_order_notes      TEXT NULL,
-    status                ENUM('Assigned','Accepted','In Progress','Completed Submitted','Returned','Completed') DEFAULT 'Assigned',
+    status                VARCHAR(100) NOT NULL DEFAULT 'Assigned',
     accepted_by           INT UNSIGNED NULL,
     accepted_at           DATETIME NULL,
     completed_at          DATETIME NULL,
@@ -413,7 +392,7 @@ CREATE TABLE contractor_progress_updates (
     assignment_id   INT UNSIGNED NOT NULL,
     order_id        INT UNSIGNED NOT NULL,
     updated_by      INT UNSIGNED NOT NULL,
-    progress_status ENUM('In Progress','Delayed','Blocked','Completed') NOT NULL DEFAULT 'In Progress',
+    progress_status VARCHAR(100) NOT NULL DEFAULT 'In Progress',
     delay_reason    ENUM('Customer Unavailable','Access Denied','Weather','Missing Materials','Technical Issue','Other') NULL,
     notes           TEXT NOT NULL,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -432,16 +411,7 @@ CREATE TABLE contractor_evidence (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     assignment_id   INT UNSIGNED NOT NULL,
     order_id        INT UNSIGNED NOT NULL,
-    evidence_type   ENUM(
-                        'Site Photo',
-                        'ONT/ONU Serial',
-                        'Signal Test',
-                        'Speed Test',
-                        'Latency Test',
-                        'UAT Sign-off',
-                        'Installation Remarks',
-                        'Other'
-                    ) NOT NULL,
+    evidence_type   VARCHAR(100) NOT NULL,
     serial_number   VARCHAR(200) NULL COMMENT 'For ONT/ONU serial number',
     notes           TEXT NULL,
     file_name       VARCHAR(255) NULL,
@@ -515,6 +485,32 @@ CREATE TABLE sla_config (
     is_active       TINYINT(1) DEFAULT 1,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- 17. active_services
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS active_services;
+CREATE TABLE active_services (
+    id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    service_id          VARCHAR(100) NOT NULL UNIQUE,
+    order_id            INT UNSIGNED NOT NULL,
+    partner_id          INT UNSIGNED NOT NULL,
+    customer_name       VARCHAR(200) NOT NULL,
+    service_type        VARCHAR(100) NOT NULL,
+    circuit_id          VARCHAR(100) NULL,
+    bandwidth_capacity  VARCHAR(100) NULL,
+    location            VARCHAR(255) NULL,
+    building_name       VARCHAR(200) NULL,
+    kam_id              INT UNSIGNED NULL,
+    activation_date     DATE NULL,
+    billing_start_date  DATE NULL,
+    status              VARCHAR(100) NOT NULL DEFAULT 'Active',
+    monitoring_status   VARCHAR(100) DEFAULT 'Unknown',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_order (order_id),
+    INDEX idx_partner (partner_id)
 ) ENGINE=InnoDB;
 
 -- ============================================================

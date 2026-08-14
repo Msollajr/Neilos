@@ -49,6 +49,41 @@ function getDB(): PDO {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
             try {
                 $pdo->exec("ALTER TABLE users MODIFY COLUMN role VARCHAR(50) NOT NULL DEFAULT 'Partner'");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN site_category VARCHAR(100) NULL");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN service_type VARCHAR(100) NOT NULL DEFAULT 'FTTH'");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN fttx_package VARCHAR(100) NULL");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN bandwidth VARCHAR(100) NULL");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN nni_location VARCHAR(200) NULL");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN aggregate_capacity VARCHAR(100) NULL");
+                $pdo->exec("ALTER TABLE orders MODIFY COLUMN status VARCHAR(100) NOT NULL DEFAULT 'Feasibility Review'");
+                $pdo->exec("ALTER TABLE contractor_assignments MODIFY COLUMN status VARCHAR(100) NOT NULL DEFAULT 'Assigned'");
+                $pdo->exec("ALTER TABLE contractor_progress_updates MODIFY COLUMN progress_status VARCHAR(100) NOT NULL DEFAULT 'In Progress'");
+                $pdo->exec("ALTER TABLE contractor_evidence MODIFY COLUMN evidence_type VARCHAR(100) NOT NULL");
+                $pdo->exec("ALTER TABLE evidence_checklist_config MODIFY COLUMN evidence_type VARCHAR(100) NOT NULL");
+                $pdo->exec("CREATE TABLE IF NOT EXISTS active_services (
+                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    service_id VARCHAR(100) NOT NULL UNIQUE,
+                    order_id INT UNSIGNED NOT NULL,
+                    partner_id INT UNSIGNED NOT NULL,
+                    customer_name VARCHAR(200) NOT NULL,
+                    service_type VARCHAR(100) NOT NULL,
+                    circuit_id VARCHAR(100) NULL,
+                    bandwidth_capacity VARCHAR(100) NULL,
+                    location VARCHAR(255) NULL,
+                    building_name VARCHAR(200) NULL,
+                    kam_id INT UNSIGNED NULL,
+                    activation_date DATE NULL,
+                    billing_start_date DATE NULL,
+                    status VARCHAR(100) NOT NULL DEFAULT 'Active',
+                    monitoring_status VARCHAR(100) DEFAULT 'Unknown',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_order (order_id),
+                    INDEX idx_partner (partner_id)
+                ) ENGINE=InnoDB");
+                $pdo->exec("ALTER TABLE active_services MODIFY COLUMN service_type VARCHAR(100) NOT NULL");
+                $pdo->exec("ALTER TABLE active_services MODIFY COLUMN bandwidth_capacity VARCHAR(100) NULL");
+                $pdo->exec("ALTER TABLE active_services MODIFY COLUMN status VARCHAR(100) NOT NULL DEFAULT 'Active'");
                 $pdo->exec("UPDATE users SET role = 'Partner' WHERE (role IS NULL OR role = '' OR role = 'Partner User') AND partner_id IN (SELECT id FROM partners WHERE kyc_type = 'Partner' OR partner_type IN ('ISP','Reseller'))");
                 $pdo->exec("UPDATE evidence_checklist_config SET is_mandatory = 1 WHERE evidence_type = 'Latency Test'");
                 $pdo->exec("

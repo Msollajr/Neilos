@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     verifyCsrf();
     requirePermission('orders.create');
 
-    $serviceType = $_POST['service_type'] ?? '';
+    $serviceType = trim($_POST['service_type'] ?? '');
     $allowed = ['Layer 2 ( last mile)', 'FTTH', 'FTTB', 'BIA (Broadband Internet Access)', 'Remote Hands Only', 'DIA', 'Dedicated Layer 2', 'Remote Hands'];
     if (!in_array($serviceType, $allowed)) {
         setFlash('danger', 'Invalid service type.');
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             $stmt->execute([
                 $orderNum, $partnerId, $kamId, $kamName,
                 $_POST['customer_name'] ?? '', $_POST['customer_location'] ?? '',
-                $_POST['gps_coordinates'] ?? '', $_POST['site_category'] ?? null,
+                $_POST['gps_coordinates'] ?? '', !empty($_POST['site_category']) ? trim($_POST['site_category']) : null,
                 $_POST['building_name'] ?? '', $_POST['floor_number'] ?? '', $_POST['apartment_number'] ?? '',
                 $_POST['customer_contact_name'] ?? '', $_POST['customer_contact_phone'] ?? '',
                 $_POST['customer_contact_email'] ?? '',
