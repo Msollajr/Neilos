@@ -5,188 +5,142 @@ $db     = getDB();
 $user   = currentUser();
 $action = $_GET['action'] ?? 'list';
 
-function formatSlaDuration(?int $seconds, bool $isOngoing = false): string {
-    if ($seconds === null || $seconds < 0) {
-        return '—';
-    }
-    
-    $minutes = (int)round($seconds / 60);
-    if ($minutes < 1) {
-        return '0 min' . ($isOngoing ? ' (ongoing)' : '');
-    }
-    
-    $days = (int)floor($minutes / (24 * 60));
-    $remainingMin = $minutes % (24 * 60);
-    $hours = (int)floor($remainingMin / 60);
-    $mins = $remainingMin % 60;
-    
-    $parts = [];
-    if ($days > 0) {
-        $parts[] = $days === 1 ? '1 day' : "$days days";
-    }
-    if ($hours > 0) {
-        $parts[] = $hours === 1 ? '1 hr' : "$hours hrs";
-    }
-    if ($mins > 0 || empty($parts)) {
-        $parts[] = "$mins min";
-    }
-    
-    $formatted = implode(' ', $parts);
-    return $isOngoing ? "$formatted (ongoing)" : $formatted;
-}
-
-function computeOrderSlaTimestamps(array $o, array $timeline): array {
-    $submittedTs = strtotime($o['created_at']);
-    $now = time();
-    
-    $bsaTs = null;
-    foreach ($timeline as $t) {
-        if (in_array($t['status'], ['Await Commercial Approval', 'Management Approval', 'Pending SOF', 'SOF Review', 'Installation', 'Testing', 'UAT', 'Closed'])) {
-            $bsaTs = strtotime($t['changed_at']);
-            break;
-        }
-    }
-    
-    $approvedTs = null;
-    foreach ($timeline as $t) {
-        if (in_array($t['status'], ['Pending SOF', 'SOF Review', 'Installation', 'Testing', 'UAT', 'Closed'])) {
-            $approvedTs = strtotime($t['changed_at']);
-            break;
-        }
-    }
-    
-    $activatedTs = null;
-    if (in_array($o['status'], ['Closed', 'UAT'])) {
-        if (!empty($o['uat_accepted_at'])) {
-            $activatedTs = strtotime($o['uat_accepted_at']);
-        } elseif (!empty($o['closed_date'])) {
-            $activatedTs = strtotime($o['closed_date']);
-        }
-        if (!$activatedTs) {
-            foreach ($timeline as $t) {
-                if (in_array($t['status'], ['Closed', 'UAT'])) {
-                    $activatedTs = strtotime($t['changed_at']);
-                    break;
-                }
-            }
-        }
-    }
-    
-    // Stage 1: Submitted → BSA
-    $dur1 = null; $isDur1Ongoing = false;
-    if ($bsaTs && $submittedTs) {
-        $dur1 = max(0, $bsaTs - $submittedTs);
-    } elseif ($o['status'] === 'Feasibility Review' && $submittedTs) {
-        $dur1 = max(0, $now - $submittedTs);
-        $isDur1Ongoing = true;
-    }
-
-    // Stage 2: BSA → Approved
-    $dur2 = null; $isDur2Ongoing = false;
-    if ($approvedTs && $bsaTs) {
-        $dur2 = max(0, $approvedTs - $bsaTs);
-    } elseif (in_array($o['status'], ['Await Commercial Approval', 'Management Approval'])) {
-        $startRef = $bsaTs ?: $submittedTs;
-        if ($startRef) {
-            $dur2 = max(0, $now - $startRef);
-            $isDur2Ongoing = true;
-        }
-    }
-
-    // Stage 3: Approved → Activated
-    $dur3 = null; $isDur3Ongoing = false;
-    if ($activatedTs && $approvedTs) {
-        $dur3 = max(0, $activatedTs - $approvedTs);
-    } elseif (in_array($o['status'], ['Pending SOF', 'SOF Review', 'Installation', 'Testing', 'UAT'])) {
-        $startRef = $approvedTs ?: ($bsaTs ?: $submittedTs);
-        if ($startRef) {
-            $dur3 = max(0, $now - $startRef);
-            $isDur3Ongoing = true;
-        }
-    }
-
-    // Total Duration: ALWAYS populated for all orders!
-    $totalDur = null; $isTotalOngoing = false;
-    if ($o['status'] === 'Closed' && $activatedTs && $submittedTs) {
-        $totalDur = max(0, $activatedTs - $submittedTs);
-    } elseif ($submittedTs) {
-        $totalDur = max(0, $now - $submittedTs);
-        $isTotalOngoing = true;
-    }
-
-    $stDisplay = !empty($o['service_type']) ? $o['service_type'] : '';
-    if (!$stDisplay) {
-        if (!empty($o['fttx_package'])) {
-            $stDisplay = 'FTTH';
-        } elseif (!empty($o['aggregate_capacity'])) {
-            $stDisplay = 'Layer 2 (last mile)';
-        } elseif (!empty($o['bandwidth'])) {
-            $stDisplay = 'BIA (Broadband Internet Access)';
-        } elseif ((float)($o['remote_hands_nrc_usd'] ?? 0) > 0 || (float)($o['base_nrc_usd'] ?? 0) == 80000) {
-            $stDisplay = 'Remote Hands Only';
-        }
-    }
-    
-    return [
-        'service_type_display'    => $stDisplay,
-        'dur_submitted_bsa'       => $dur1,
-        'is_dur1_ongoing'         => $isDur1Ongoing,
-        'dur_bsa_approved'        => $dur2,
-        'is_dur2_ongoing'         => $isDur2Ongoing,
-        'dur_approved_activated'  => $dur3,
-        'is_dur3_ongoing'         => $isDur3Ongoing,
-        'dur_total'               => $totalDur,
-        'is_total_ongoing'        => $isTotalOngoing
-    ];
-}
-
+// ------------------------------------------------------------------
+// Date Range & Query Filtering
+// ------------------------------------------------------------------
 $pw = partnerWhere('o');
 $where  = "WHERE {$pw['condition']}";
 $params = $pw['params'];
+
+$filterPreset = $_GET['preset'] ?? '';
+$filterStart  = trim($_GET['start_date'] ?? '');
+$filterEnd    = trim($_GET['end_date'] ?? '');
+
+if ($filterPreset === 'today') {
+    $filterStart = date('Y-m-d');
+    $filterEnd   = date('Y-m-d');
+} elseif ($filterPreset === 'this_month') {
+    $filterStart = date('Y-m-01');
+    $filterEnd   = date('Y-m-t');
+} elseif ($filterPreset === 'last_month') {
+    $filterStart = date('Y-m-01', strtotime('-1 month'));
+    $filterEnd   = date('Y-m-t', strtotime('-1 month'));
+} elseif ($filterPreset === 'this_year') {
+    $filterStart = date('Y-01-01');
+    $filterEnd   = date('Y-12-31');
+}
+
+if ($filterStart && $filterEnd) {
+    $where .= " AND o.created_at BETWEEN ? AND ?";
+    $params[] = $filterStart . ' 00:00:00';
+    $params[] = $filterEnd . ' 23:59:59';
+} elseif ($filterStart) {
+    $where .= " AND o.created_at >= ?";
+    $params[] = $filterStart . ' 00:00:00';
+} elseif ($filterEnd) {
+    $where .= " AND o.created_at <= ?";
+    $params[] = $filterEnd . ' 23:59:59';
+}
 
 $filterSearch = $_GET['q'] ?? '';
 $filterStatus = $_GET['status'] ?? '';
 $sortKey      = $_GET['sort'] ?? 'newest';
 
-if ($filterSearch) { $where .= " AND (o.order_number LIKE ? OR o.customer_name LIKE ?)"; $pS = "%$filterSearch%"; $params[] = $pS; $params[] = $pS; }
-if ($filterStatus) { $where .= " AND o.status = ?"; $params[] = $filterStatus; }
+if ($filterSearch) { 
+    $where .= " AND (o.order_number LIKE ? OR o.customer_name LIKE ?)"; 
+    $pS = "%$filterSearch%"; 
+    $params[] = $pS; 
+    $params[] = $pS; 
+}
+if ($filterStatus) { 
+    $where .= " AND o.status = ?"; 
+    $params[] = $filterStatus; 
+}
 
+// ------------------------------------------------------------------
+// High-Level SLA Summary Metrics (Filtered)
+// ------------------------------------------------------------------
+$allMatchingStmt = $db->prepare("SELECT o.* FROM orders o $where");
+$allMatchingStmt->execute($params);
+$allMatchingOrders = $allMatchingStmt->fetchAll();
+
+$slaAnalytics = computeComprehensiveSlaAnalytics($allMatchingOrders, $db);
+$totalEvaluated         = $slaAnalytics['total_evaluated'];
+$totalWithinSla         = $slaAnalytics['within_sla_count'];
+$totalAtRisk            = $slaAnalytics['at_risk_count'];
+$totalBreached          = $slaAnalytics['breached_count'];
+$totalPaused            = $slaAnalytics['paused_count'];
+$nonBreachedCount       = $slaAnalytics['non_breached_count'];
+$slaOverallCompliance   = $slaAnalytics['compliance_pct'];
+$avgDurationFormatted   = $slaAnalytics['avg_duration_formatted'];
+$totalStageBreaches     = $slaAnalytics['total_stage_breaches'];
+$ordersWithStageBreaches= $slaAnalytics['orders_with_stage_breaches'];
+$completedCount         = $slaAnalytics['completed_count'];
+$activeCount            = $slaAnalytics['active_count'];
+
+// ------------------------------------------------------------------
+// CSV Export
+// ------------------------------------------------------------------
 if ($action === 'export') {
-    $stmt = $db->prepare("SELECT o.* FROM orders o $where ORDER BY o.created_at DESC");
-    $stmt->execute($params);
-    $orders = $stmt->fetchAll();
-
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="sla_tracking.csv"');
+    header('Content-Disposition: attachment; filename="sla_tracking_' . date('Ymd_His') . '.csv"');
     $f = fopen('php://output', 'w');
-    fputcsv($f, ['Order #','Customer','Service Type','Status','Created At','Submitted → BSA','BSA → Approved','Approved → Activated','Total Duration']);
+    fputcsv($f, [
+        'Order #',
+        'Customer',
+        'Service Type',
+        'Current Status',
+        'Order SLA Status',
+        'Created At',
+        'SLA End / Closed Date',
+        'Total Duration',
+        'Paused Duration',
+        'Feasibility Duration',
+        'Feasibility SLA',
+        'Commercial Approval Duration',
+        'Commercial SLA',
+        'SOF Execution Duration',
+        'SOF SLA',
+        'Installation Duration',
+        'Installation SLA',
+        'Testing/UAT Duration',
+        'Testing/UAT SLA',
+        'Total Stage Breaches'
+    ]);
 
-    foreach ($orders as $o) {
-        $tlSt = $db->prepare("SELECT status, changed_at FROM order_timeline WHERE order_id = ? ORDER BY changed_at ASC");
-        $tlSt->execute([$o['id']]);
-        $tl = $tlSt->fetchAll();
-        $metrics = computeOrderSlaTimestamps($o, $tl);
-
+    foreach ($slaAnalytics['order_evaluations'] as $eval) {
+        $stgs = $eval['stages'];
         fputcsv($f, [
-            $o['order_number'],
-            $o['customer_name'],
-            $metrics['service_type_display'] ?: '—',
-            $o['status'],
-            $o['created_at'],
-            formatSlaDuration($metrics['dur_submitted_bsa'], $metrics['is_dur1_ongoing']),
-            formatSlaDuration($metrics['dur_bsa_approved'], $metrics['is_dur2_ongoing']),
-            formatSlaDuration($metrics['dur_approved_activated'], $metrics['is_dur3_ongoing']),
-            formatSlaDuration($metrics['dur_total'], $metrics['is_total_ongoing'])
+            $eval['order_number'],
+            $eval['customer_name'],
+            $eval['service_type_display'] ?: '—',
+            $eval['current_status'],
+            $eval['order_sla_status'],
+            $eval['created_at'],
+            $eval['is_closed'] ? date('Y-m-d H:i:s', $eval['order_end_ts']) : 'Active (In-Flight)',
+            $eval['formatted_total_duration'],
+            $eval['paused_hours'] > 0 ? "{$eval['paused_hours']} hrs" : '0 hrs',
+            $stgs['feasibility']['formatted_duration'],
+            $stgs['feasibility']['status_label'],
+            $stgs['commercial']['formatted_duration'],
+            $stgs['commercial']['status_label'],
+            $stgs['sof']['formatted_duration'],
+            $stgs['sof']['status_label'],
+            $stgs['installation']['formatted_duration'],
+            $stgs['installation']['status_label'],
+            $stgs['testing_uat']['formatted_duration'],
+            $stgs['testing_uat']['status_label'],
+            $eval['stage_breach_count']
         ]);
     }
     fclose($f);
     exit;
 }
 
-$totalStmt = $db->prepare("SELECT COUNT(*) FROM orders o $where");
-$totalStmt->execute($params);
-$total = (int)$totalStmt->fetchColumn();
-
+// ------------------------------------------------------------------
+// Paginated Order Listing
+// ------------------------------------------------------------------
+$total = $totalEvaluated;
 $limit = 25;
 $pg  = max(1, (int)($_GET['p'] ?? 1));
 $offset = ($pg - 1) * $limit;
@@ -202,30 +156,28 @@ $stmt->execute($params);
 $orders = $stmt->fetchAll();
 
 $slaData = [];
-foreach ($orders as $o) {
-    $tlSt = $db->prepare("SELECT status, changed_at FROM order_timeline WHERE order_id = ? ORDER BY changed_at ASC");
-    $tlSt->execute([$o['id']]);
-    $tl = $tlSt->fetchAll();
-    
-    $metrics = computeOrderSlaTimestamps($o, $tl);
-    $o['service_type_display']   = $metrics['service_type_display'];
-    $o['dur_submitted_bsa']      = $metrics['dur_submitted_bsa'];
-    $o['is_dur1_ongoing']        = $metrics['is_dur1_ongoing'];
-    $o['dur_bsa_approved']       = $metrics['dur_bsa_approved'];
-    $o['is_dur2_ongoing']        = $metrics['is_dur2_ongoing'];
-    $o['dur_approved_activated'] = $metrics['dur_approved_activated'];
-    $o['is_dur3_ongoing']        = $metrics['is_dur3_ongoing'];
-    $o['dur_total']              = $metrics['dur_total'];
-    $o['is_total_ongoing']       = $metrics['is_total_ongoing'];
-    
-    $slaData[] = $o;
+if (!empty($orders)) {
+    $orderIds = array_column($orders, 'id');
+    $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+    $tlSt = $db->prepare("SELECT id, order_id, status, changed_at, note FROM order_timeline WHERE order_id IN ($placeholders) ORDER BY changed_at ASC, id ASC");
+    $tlSt->execute($orderIds);
+    $timelines = [];
+    foreach ($tlSt->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $timelines[$t['order_id']][] = $t;
+    }
+
+    foreach ($orders as $o) {
+        $tl = $timelines[$o['id']] ?? [];
+        $eval = computeOrderTimelineStages($o, $tl);
+        $slaData[] = $eval;
+    }
 }
 
 if (in_array($sortKey, ['total_desc', 'total_asc', 'bsa_desc', 'bsa_asc', 'approved_desc', 'approved_asc', 'activated_desc', 'activated_asc'])) {
     usort($slaData, function($a, $b) use ($sortKey) {
         $keyMap = [
-            'total_desc'      => ['dur_total', -1],
-            'total_asc'       => ['dur_total', 1],
+            'total_desc'      => ['effective_order_seconds', -1],
+            'total_asc'       => ['effective_order_seconds', 1],
             'bsa_desc'        => ['dur_submitted_bsa', -1],
             'bsa_asc'         => ['dur_submitted_bsa', 1],
             'approved_desc'   => ['dur_bsa_approved', -1],
@@ -243,7 +195,8 @@ if (in_array($sortKey, ['total_desc', 'total_asc', 'bsa_desc', 'bsa_asc', 'appro
 
 $allStatuses = ['Feasibility Review','Await Commercial Approval','Management Approval','Pending SOF','SOF Review','Installation','Testing','UAT','Closed','Not Feasible','Cancelled'];
 
-$pageTitle = 'SLA Tracking';
+$pageTitle = 'SLA Tracking & Delay Analytics';
 include APP_DIR . '/views/layout/header.php';
 include APP_DIR . '/views/sla_tracking/index.php';
 include APP_DIR . '/views/layout/footer.php';
+

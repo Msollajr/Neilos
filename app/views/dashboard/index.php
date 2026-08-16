@@ -37,6 +37,41 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   </div>
 </div>
 
+<!-- Date Filter Bar -->
+<div class="card mb-24" style="background:var(--surface-1);border:1px solid var(--border)">
+  <div class="card-body" style="padding:12px 18px">
+    <form method="GET" action="<?= APP_URL ?>/" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <input type="hidden" name="page" value="dashboard">
+      
+      <!-- Preset Buttons -->
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);margin-right:4px">Period:</span>
+        <a href="<?= APP_URL ?>/?page=dashboard&preset=all" class="btn btn-xs <?= ($preset === 'all') ? 'btn-primary' : 'btn-outline-secondary' ?>">All Time</a>
+        <a href="<?= APP_URL ?>/?page=dashboard&preset=today" class="btn btn-xs <?= ($preset === 'today') ? 'btn-primary' : 'btn-outline-secondary' ?>">Today</a>
+        <a href="<?= APP_URL ?>/?page=dashboard&preset=this_month" class="btn btn-xs <?= ($preset === 'this_month') ? 'btn-primary' : 'btn-outline-secondary' ?>">This Month</a>
+        <a href="<?= APP_URL ?>/?page=dashboard&preset=last_month" class="btn btn-xs <?= ($preset === 'last_month') ? 'btn-primary' : 'btn-outline-secondary' ?>">Last Month</a>
+        <a href="<?= APP_URL ?>/?page=dashboard&preset=this_year" class="btn btn-xs <?= ($preset === 'this_year') ? 'btn-primary' : 'btn-outline-secondary' ?>">This Year</a>
+      </div>
+
+      <!-- Custom Date Inputs -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          <label style="font-size:0.8rem;color:var(--text-secondary);margin:0">From:</label>
+          <input type="date" name="start_date" class="form-control" style="padding:4px 8px;font-size:0.82rem;height:30px" value="<?= e($startDate) ?>">
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <label style="font-size:0.8rem;color:var(--text-secondary);margin:0">To:</label>
+          <input type="date" name="end_date" class="form-control" style="padding:4px 8px;font-size:0.82rem;height:30px" value="<?= e($endDate) ?>">
+        </div>
+        <button type="submit" class="btn btn-secondary btn-xs" style="height:30px;padding:0 12px">Apply Filter</button>
+        <?php if ($startDate || $endDate || $preset !== 'all'): ?>
+        <a href="<?= APP_URL ?>/?page=dashboard" class="btn btn-outline btn-xs" style="height:30px;padding:0 8px" title="Reset date filter">✕ Reset</a>
+        <?php endif; ?>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Quick Actions Panel -->
 <div class="card mb-24">
   <div class="card-header">
@@ -48,16 +83,27 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <a href="<?= APP_URL ?>/?page=new_order" class="btn btn-primary btn-sm">
         <?= svgIcon('plus') ?> New Order
       </a>
-      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">
+      <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">
         <?= svgIcon('list') ?> Order Tracking
       </a>
+      <?php if (hasRole('BSA','Admin') || isAdmin()): ?>
+      <a href="<?= APP_URL ?>/?page=ftth_bulk" class="btn btn-secondary btn-sm">
+        <?= svgIcon('upload') ?> FTTH Bulk Upload
+      </a>
+      <?php endif; ?>
       <a href="<?= APP_URL ?>/?page=contractor" class="btn btn-secondary btn-sm">
         <?= svgIcon('users') ?> Contractor Jobs
+      </a>
+      <a href="<?= APP_URL ?>/?page=sla_tracking<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">
+        <?= svgIcon('clock') ?> SLA Tracking
       </a>
       <a href="<?= APP_URL ?>/?page=kyc" class="btn btn-secondary btn-sm">
         <?= svgIcon('document') ?> KYC Application
       </a>
       <?php if (isAdmin()): ?>
+      <a href="<?= APP_URL ?>/?page=settings" class="btn btn-secondary btn-sm">
+        <?= svgIcon('settings') ?> Company Settings
+      </a>
       <a href="<?= APP_URL ?>/?page=partners" class="btn btn-secondary btn-sm">
         <?= svgIcon('building') ?> Add Partner
       </a>
@@ -65,72 +111,62 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <a href="<?= APP_URL ?>/?page=reports" class="btn btn-outline btn-sm">
         <?= svgIcon('chart') ?> Operations Reports
       </a>
-      <a href="?page=orders&export=csv" class="btn btn-outline btn-sm">
+      <a href="?page=orders&export=csv<?= $filterQueryStr ?>" class="btn btn-outline btn-sm">
         <?= svgIcon('download') ?> Export Orders CSV
       </a>
     </div>
   </div>
 </div>
 
-<!-- 7 Executive Summary Cards Grid (All Clickable Module Links) -->
-<div class="stats-grid mb-24">
+<!-- 6 Executive Summary Cards Grid (All Clickable Module Links) -->
+<div class="stats-grid mb-24" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
   <!-- Total Service Orders -->
-  <a href="<?= APP_URL ?>/?page=orders" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view all Service Orders">
+  <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view all Service Orders in selected period">
     <div class="stat-icon blue"><?= svgIcon('list', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $totalOrders ?>">0</div>
+      <div class="stat-value" data-count="<?= $totalOrders ?>"><?= $totalOrders ?></div>
       <div class="stat-label">Total Orders</div>
-      <div class="stat-change up">+<?= $submittedOrders ?> new</div>
+      <div class="stat-change up"><?= $totalOrders ?> recorded</div>
     </div>
   </a>
 
   <!-- Closed Orders -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Closed" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Closed Orders">
+  <a href="<?= APP_URL ?>/?page=orders&status=Closed<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Closed Orders in selected period">
     <div class="stat-icon green"><?= svgIcon('server', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $completedOrders ?>">0</div>
+      <div class="stat-value" data-count="<?= $completedOrders ?>"><?= $completedOrders ?></div>
       <div class="stat-label">Closed Orders</div>
       <div class="stat-change up">Billing Active</div>
     </div>
   </a>
 
   <!-- Pending Actions -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Feasibility Review" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Feasibility Review">
+  <a href="<?= APP_URL ?>/?page=orders&status=Feasibility+Review<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Feasibility Review">
     <div class="stat-icon yellow"><?= svgIcon('clock', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $pendingBSA + $pendingUAT ?>">0</div>
+      <div class="stat-value" data-count="<?= $pendingBSA + $pendingUAT ?>"><?= $pendingBSA + $pendingUAT ?></div>
       <div class="stat-label">Pending Actions</div>
       <div class="stat-change"><?= $pendingBSA ?> BSA · <?= $pendingUAT ?> UAT</div>
     </div>
   </a>
 
   <!-- In-Progress Orders -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Installation" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view In-Progress Orders">
+  <a href="<?= APP_URL ?>/?page=orders&status=Installation<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view In-Progress Orders">
     <div class="stat-icon blue"><?= svgIcon('project', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= ($orderStats['Installation'] ?? 0) + ($orderStats['Testing'] ?? 0) + ($orderStats['UAT'] ?? 0) ?>">0</div>
+      <div class="stat-value" data-count="<?= $inProgressOrders ?>"><?= $inProgressOrders ?></div>
       <div class="stat-label">In-Progress Orders</div>
       <div class="stat-change up">Fulfillment active</div>
     </div>
   </a>
 
   <!-- Not Feasible Orders -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Not Feasible" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Not Feasible Orders">
+  <a href="<?= APP_URL ?>/?page=orders&status=Not+Feasible<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Not Feasible Orders">
     <div class="stat-icon red"><?= svgIcon('x-circle', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $cancelledOrders ?>">0</div>
+      <div class="stat-value" data-count="<?= $cancelledOrders ?>"><?= $cancelledOrders ?></div>
       <div class="stat-label">Not Feasible</div>
-      <div class="stat-change text-muted">Low churn rate</div>
-    </div>
-  </a>
-
-  <!-- Active Customers -->
-  <a href="<?= APP_URL ?>/?page=orders&status=Closed" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Active Customers">
-    <div class="stat-icon cyan"><?= svgIcon('users', 22) ?></div>
-    <div class="stat-info">
-      <div class="stat-value" data-count="<?= $activeCustomers ?>">0</div>
-      <div class="stat-label">Active Customers</div>
-      <div class="stat-change up">Growing account base</div>
+      <div class="stat-change text-muted"><?= $cancelledOrders ?> order(s)</div>
     </div>
   </a>
 
@@ -138,9 +174,9 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   <a href="<?= APP_URL ?>/?page=partners" class="stat-card" style="text-decoration:none;color:inherit" title="Click to view Partners">
     <div class="stat-icon navy"><?= svgIcon('building', 22) ?></div>
     <div class="stat-info">
-      <div class="stat-value" data-count="<?= $totalPartners ?>">0</div>
+      <div class="stat-value" data-count="<?= $totalPartners ?>"><?= $totalPartners ?></div>
       <div class="stat-label">Registered Partners</div>
-      <div class="stat-change up">Verified ISPs &amp; VARs</div>
+      <div class="stat-change up">Active partners</div>
     </div>
   </a>
 </div>
@@ -154,149 +190,108 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       <div class="card-title" style="font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
         <?= svgIcon('dollar-sign', 22) ?> Dedicated Revenue Analysis
       </div>
-      <div class="card-subtitle">Calculated strictly from Closed + Billing Active Orders (status = Closed and billing start date reached) using final Commercial Summary values.</div>
+      <div class="card-subtitle">Calculated strictly from Closed + Billing Active Orders in the selected period (status = Closed and billing start date reached).</div>
     </div>
   </div>
   <div class="card-body" style="padding: 20px;">
     
     <!-- 1. Revenue Summary KPI Cards -->
-    <div style="margin-bottom: 24px;">
-      <h3 style="font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;">1. Revenue Summary</h3>
-      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
-        <!-- NRC Revenue -->
-        <div class="stat-card" style="border-left: 4px solid #3B82F6; background: var(--surface-1);">
-          <div class="stat-icon blue"><?= svgIcon('dollar', 22) ?></div>
-          <div class="stat-info">
-            <div class="stat-value" style="font-size: 1.45rem;">TZS <?= money($totalNrcRevenue) ?></div>
-            <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">NRC Revenue</div>
-            <div class="stat-change text-muted font-sm">One-time revenue (Incl. 18% VAT)</div>
-          </div>
+    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+      <!-- NRC Revenue -->
+      <div class="stat-card" style="border-left: 4px solid #3B82F6; background: var(--surface-1);">
+        <div class="stat-icon blue"><?= svgIcon('dollar', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value" style="font-size: 1.45rem;">TZS <?= money($totalNrcRevenue) ?></div>
+          <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">NRC Revenue</div>
+          <div class="stat-change text-muted font-sm">One-time revenue (Incl. 18% VAT)</div>
         </div>
+      </div>
 
-        <!-- MRC Revenue -->
-        <div class="stat-card" style="border-left: 4px solid #10B981; background: var(--surface-1);">
-          <div class="stat-icon green"><?= svgIcon('dollar-sign', 22) ?></div>
-          <div class="stat-info">
-            <div class="stat-value" style="font-size: 1.45rem;">TZS <?= money($totalMrcRevenue) ?></div>
-            <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">MRC Revenue</div>
-            <div class="stat-change text-muted font-sm">Recurring monthly (Incl. 18% VAT)</div>
-          </div>
+      <!-- MRC Revenue -->
+      <div class="stat-card" style="border-left: 4px solid #10B981; background: var(--surface-1);">
+        <div class="stat-icon green"><?= svgIcon('dollar-sign', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value" style="font-size: 1.45rem;">TZS <?= money($totalMrcRevenue) ?></div>
+          <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">MRC Revenue</div>
+          <div class="stat-change text-muted font-sm">Recurring monthly (Incl. 18% VAT)</div>
         </div>
+      </div>
 
-        <!-- Total Revenue -->
-        <div class="stat-card" style="border-left: 4px solid #0F4C81; background: var(--surface-1);">
-          <div class="stat-icon navy"><?= svgIcon('chart', 22) ?></div>
-          <div class="stat-info">
-            <div class="stat-value" style="font-size: 1.45rem; color: #0F4C81;">TZS <?= money($totalCombinedRevenue) ?></div>
-            <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">Total Revenue</div>
-            <div class="stat-change up">Combined NRC + MRC (Incl. 18% VAT)</div>
-          </div>
+      <!-- Total Revenue -->
+      <div class="stat-card" style="border-left: 4px solid #0F4C81; background: var(--surface-1);">
+        <div class="stat-icon navy"><?= svgIcon('chart', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value" style="font-size: 1.45rem; color: #0F4C81;">TZS <?= money($totalCombinedRevenue) ?></div>
+          <div class="stat-label" style="font-weight: 600; color: var(--text-primary);">Total Revenue</div>
+          <div class="stat-change up">Combined NRC + MRC (Incl. 18% VAT)</div>
         </div>
       </div>
     </div>
 
-    <!-- 2. NRC / MRC Breakdown -->
-    <div style="margin-bottom: 24px;">
-      <h3 style="font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;">2. NRC / MRC Revenue Breakdown</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; background: var(--surface-2); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border);">
-        <div>
-          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Total NRC (Incl. VAT)</div>
-          <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">TZS <?= money($totalNrcRevenue) ?></div>
+    <!-- 2. Revenue Breakdown by Service Type -->
+    <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);">Revenue by Service Type</span>
+          <span class="badge badge-secondary" style="font-size: 0.75rem; padding: 4px 8px;"><?= count($serviceTypeRevenue) ?> Active Service <?= count($serviceTypeRevenue) === 1 ? 'Type' : 'Types' ?></span>
         </div>
-        <div>
-          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Total MRC (Incl. VAT)</div>
-          <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">TZS <?= money($totalMrcRevenue) ?></div>
-        </div>
-        <div>
-          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Total Revenue</div>
-          <div style="font-size: 1.15rem; font-weight: 700; color: #0F4C81; margin-top: 4px;">TZS <?= money($totalCombinedRevenue) ?></div>
-        </div>
-        <div>
-          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted);">Billing-Active Orders</div>
-          <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;"><?= $billingActiveCount ?></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3 & 4. Revenue Charts Grid Row -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; margin-bottom: 24px;">
-      <!-- 3. Revenue Comparison Chart -->
-      <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; background: var(--surface-1);">
-        <div style="font-weight: 600; font-size: 0.92rem; margin-bottom: 2px;">3. Revenue Comparison (NRC vs MRC vs Total)</div>
-        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">Visual comparison matching summary KPI cards exactly</div>
-        <div style="position: relative; height: 250px; width: 100%;">
-          <canvas id="revenueComparisonChart"></canvas>
+        <div style="font-size: 0.82rem; color: var(--text-secondary);">
+          Total Active Billing Orders: <strong style="color: var(--text-primary);"><?= (int)$billingActiveCount ?></strong>
         </div>
       </div>
 
-      <!-- 4. Revenue Trend Chart -->
-      <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; background: var(--surface-1);">
-        <div style="font-weight: 600; font-size: 0.92rem; margin-bottom: 2px;">4. Revenue Trend Over Time</div>
-        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">Billing activation date (NRC one-time, MRC recurring)</div>
-        <div style="position: relative; height: 250px; width: 100%;">
-          <canvas id="revenueTrendChart"></canvas>
+      <?php if (empty($serviceTypeRevenue)): ?>
+        <div style="padding: 24px; text-align: center; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid var(--border); color: var(--text-muted); font-size: 0.88rem;">
+          No billing active orders recorded for the selected period.
         </div>
-      </div>
-    </div>
-
-    <!-- 5. Detailed Revenue Table -->
-    <div>
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-        <div>
-          <h3 style="font-size: 0.88rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin: 0;">5. Detailed Revenue Table</h3>
-          <div style="font-size: 0.78rem; color: var(--text-muted);">All Closed orders with billing start date reached</div>
+      <?php else: ?>
+        <div class="table-responsive" style="overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+          <table class="table" style="width: 100%; border-collapse: collapse; margin: 0;">
+            <thead>
+              <tr style="background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
+                <th style="padding: 10px 14px; text-align: left;">Service Type</th>
+                <th style="padding: 10px 14px; text-align: center;">Active Orders</th>
+                <th style="padding: 10px 14px; text-align: right;">NRC Revenue (TZS)</th>
+                <th style="padding: 10px 14px; text-align: right;">MRC Revenue (TZS)</th>
+                <th style="padding: 10px 14px; text-align: right;">Total Revenue (TZS)</th>
+                <th style="padding: 10px 14px; text-align: left; min-width: 140px;">Revenue Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($serviceTypeRevenue as $stName => $stData): ?>
+                <?php
+                  $sharePct = $totalCombinedRevenue > 0 ? round(($stData['total_revenue'] / $totalCombinedRevenue) * 100, 1) : 0;
+                ?>
+                <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s ease;">
+                  <td style="padding: 12px 14px; font-weight: 600; color: var(--text-primary);">
+                    <span class="badge badge-primary" style="font-size: 0.8rem; padding: 4px 8px;"><?= e($stName) ?></span>
+                  </td>
+                  <td style="padding: 12px 14px; text-align: center; font-weight: 600; color: var(--text-primary);">
+                    <?= (int)$stData['order_count'] ?>
+                  </td>
+                  <td style="padding: 12px 14px; text-align: right; color: #2563EB; font-weight: 600; font-size: 0.9rem;">
+                    <?= money($stData['nrc_revenue']) ?>
+                  </td>
+                  <td style="padding: 12px 14px; text-align: right; color: #059669; font-weight: 600; font-size: 0.9rem;">
+                    <?= money($stData['mrc_revenue']) ?>
+                  </td>
+                  <td style="padding: 12px 14px; text-align: right; font-weight: 700; color: var(--text-primary); font-size: 0.92rem;">
+                    <?= money($stData['total_revenue']) ?>
+                  </td>
+                  <td style="padding: 12px 14px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <div style="flex: 1; background: var(--surface-3); border-radius: 4px; height: 6px; overflow: hidden; min-width: 60px;">
+                        <div style="height: 100%; width: <?= $sharePct ?>%; background: var(--accent);"></div>
+                      </div>
+                      <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); min-width: 40px; text-align: right;"><?= $sharePct ?>%</span>
+                    </div>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
         </div>
-        <span class="badge badge-outline"><?= count($detailedRevenueRows) ?> billing-active order(s)</span>
-      </div>
-      <div class="table-responsive" style="border: 1px solid var(--border); border-radius: var(--radius-md);">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Order #</th>
-              <th>Customer</th>
-              <th>Service Type</th>
-              <th>Billing Start Date</th>
-              <th class="text-right">NRC (Incl. VAT)</th>
-              <th class="text-right">MRC (Incl. VAT)</th>
-              <th class="text-right">VAT (18%)</th>
-              <th class="text-right">Total Revenue</th>
-              <th class="text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (empty($detailedRevenueRows)): ?>
-            <tr>
-              <td colspan="9">
-                <div class="empty-state p-16">
-                  <div class="empty-state-title">No qualifying billing-active orders found</div>
-                  <div class="empty-state-text">All financial values display TZS 0.00 until orders are Closed with active billing start dates.</div>
-                </div>
-              </td>
-            </tr>
-            <?php else: ?>
-            <?php foreach ($detailedRevenueRows as $row): ?>
-            <tr>
-              <td>
-                <a href="<?= APP_URL ?>/?page=order_detail&id=<?= $row['id'] ?>" class="font-600" style="color:var(--accent)">
-                  <?= e($row['order_number']) ?>
-                </a>
-              </td>
-              <td><?= e($row['customer_name']) ?></td>
-              <td><span class="badge badge-primary"><?= e($row['service_type']) ?></span></td>
-              <td class="font-sm"><?= fmtDate($row['billing_start_date']) ?></td>
-              <td class="text-right font-sm font-600">TZS <?= money($row['nrc']) ?></td>
-              <td class="text-right font-sm font-600">TZS <?= money($row['mrc']) ?></td>
-              <td class="text-right font-sm text-muted">TZS <?= money($row['vat']) ?></td>
-              <td class="text-right font-sm font-700" style="color: #0F4C81;">TZS <?= money($row['total_revenue']) ?></td>
-              <td class="text-center">
-                <span class="badge badge-success"><?= e($row['status']) ?> · Active</span>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
+      <?php endif; ?>
     </div>
 
   </div>
@@ -306,77 +301,360 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
 <div class="grid-dashboard mb-24">
   <!-- Line Chart: Monthly Orders Created vs Completed -->
   <div class="card chart-card">
-    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
+    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>'">
       <div>
         <div class="card-title" style="display:flex;align-items:center;gap:6px">
           Order Volume &amp; Fulfillment Trend <?= svgIcon('chevron-right', 14) ?>
         </div>
-        <div class="card-subtitle">Orders created vs completed per month</div>
+        <div class="card-subtitle">Orders created vs completed in active filter period</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
+      <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
-      <div class="chart-container" style="position:relative;height:260px;width:100%;cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
+      <div class="chart-container" style="position:relative;height:260px;width:100%;cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>'">
+        <?php if ($totalOrders === 0): ?>
+        <div class="empty-state p-16" style="padding:40px 16px;text-align:center">
+          <div class="empty-state-title" style="font-weight:600;color:var(--text-secondary)">No data available for the selected period</div>
+          <div class="empty-state-text" style="font-size:0.85rem;color:var(--text-muted)">No orders were created or completed in this date range.</div>
+        </div>
+        <?php else: ?>
         <canvas id="monthlyTrendChart"></canvas>
+        <?php endif; ?>
       </div>
     </div>
   </div>
 
-  <!-- Donut Chart: Order Status Distribution -->
+  <!-- Column Bar Chart: Order Status Distribution -->
   <div class="card chart-card">
-    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
+    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>'">
       <div>
         <div class="card-title" style="display:flex;align-items:center;gap:6px">
           Order Status Distribution <?= svgIcon('chevron-right', 14) ?>
         </div>
-        <div class="card-subtitle"><?= $totalOrders ?> total orders by current stage</div>
+        <div class="card-subtitle"><?= $totalOrders ?> total order(s) by current stage</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
+      <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
       <div class="chart-container" style="position:relative;height:260px;width:100%">
+        <?php if ($totalOrders === 0): ?>
+        <div class="empty-state p-16" style="padding:40px 16px;text-align:center">
+          <div class="empty-state-title" style="font-weight:600;color:var(--text-secondary)">No data available for the selected period</div>
+          <div class="empty-state-text" style="font-size:0.85rem;color:var(--text-muted)">No orders match the selected filter.</div>
+        </div>
+        <?php else: ?>
         <canvas id="statusDonutChart"></canvas>
+        <?php endif; ?>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Responsive Charts Grid Row 2 -->
-<div class="grid-dashboard mb-24">
-  <!-- Pie Chart: Services Distribution by Type -->
+<!-- Responsive Charts Grid Row 2: Service Type Distribution -->
+<div class="mb-24">
+  <!-- Bar Chart: Services Distribution by Type -->
   <div class="card chart-card">
-    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
+    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>'">
       <div>
         <div class="card-title" style="display:flex;align-items:center;gap:6px">
           Service Type Distribution <?= svgIcon('chevron-right', 14) ?>
         </div>
-        <div class="card-subtitle"><?= $totalOrders ?> total orders grouped by service type</div>
+        <div class="card-subtitle"><?= $totalOrders ?> total order(s) grouped by service type</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
+      <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body">
       <div class="chart-container" style="position:relative;height:260px;width:100%">
+        <?php if ($totalOrders === 0 || empty($serviceTypeDist)): ?>
+        <div class="empty-state p-16" style="padding:40px 16px;text-align:center">
+          <div class="empty-state-title" style="font-weight:600;color:var(--text-secondary)">No data available for the selected period</div>
+          <div class="empty-state-text" style="font-size:0.85rem;color:var(--text-muted)">No services recorded in this date range.</div>
+        </div>
+        <?php else: ?>
         <canvas id="serviceTypeChart"></canvas>
+        <?php endif; ?>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Stacked Bar: Network & Service Health -->
-  <div class="card chart-card">
-    <div class="card-header" style="cursor:pointer" onclick="window.location.href='<?= APP_URL ?>/?page=orders'">
-      <div>
-        <div class="card-title" style="display:flex;align-items:center;gap:6px">
-          Network &amp; Service Health <?= svgIcon('chevron-right', 14) ?>
+<!-- ============================================================ -->
+<!-- SLA Tracking & Delay Analytics Section (Single Filtered State) -->
+<!-- ============================================================ -->
+<div class="card mb-24" id="sla-analytics-section" style="border:1px solid var(--border);border-radius:12px;overflow:hidden">
+  <div class="card-header" style="border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--surface-1)">
+    <div>
+      <div class="card-title" style="font-size:1.25rem;font-weight:700;display:flex;align-items:center;gap:8px">
+        <?= svgIcon('clock', 22) ?> SLA Tracking &amp; Delay Analytics
+      </div>
+      <div class="card-subtitle" style="font-size:0.85rem;color:var(--text-secondary);margin-top:2px">
+        <?= $slaTotalEvaluated ?> order(s) evaluated &middot; Lifecycle stage duration, compliance monitoring, and bottleneck analysis for the active filter period
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <a href="<?= APP_URL ?>/?page=sla_tracking<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+        <?= svgIcon('download', 14) ?> Full SLA Tracking &amp; Export
+      </a>
+    </div>
+  </div>
+
+  <div class="card-body" style="padding:20px">
+    
+    <!-- 1. Executive SLA KPI Cards -->
+    <div class="stats-grid mb-24" style="grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:16px">
+      <!-- SLA Compliance Rate -->
+      <div class="stat-card" style="border-left:4px solid <?= $slaCompliancePct >= 90 ? '#10B981' : '#EF4444' ?>;background:var(--surface-1)">
+        <div class="stat-icon <?= $slaCompliancePct >= 90 ? 'green' : 'red' ?>"><?= svgIcon('clock', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value"><?= $slaCompliancePct ?>%</div>
+          <div class="stat-label" style="font-weight:600;color:var(--text-primary)">Overall SLA Compliance</div>
+          <div class="stat-change <?= $slaBreachedCount > 0 ? 'text-danger' : 'up' ?>">
+            <?= $slaNonBreachedCount ?>/<?= $slaTotalEvaluated ?> compliant orders
+          </div>
         </div>
-        <div class="card-subtitle"><?= $totalOrders ?> total orders across operational stages</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
-    </div>
-    <div class="card-body">
-      <div class="chart-container" style="position:relative;height:260px;width:100%">
-        <canvas id="networkHealthChart"></canvas>
+
+      <!-- Breached Orders (Actionable Drilldown) -->
+      <a href="<?= APP_URL ?>/?page=orders&sla=breached<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit;border-left:4px solid #EF4444;background:var(--surface-1);cursor:pointer" title="Click to view breached orders">
+        <div class="stat-icon red"><?= svgIcon('x-circle', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value"><?= $slaBreachedCount ?></div>
+          <div class="stat-label" style="font-weight:600;color:var(--text-primary)">Breached Orders</div>
+          <div class="stat-change text-danger font-sm">
+            <?= $slaTotalStageBreaches ?> stage breach(es) across <?= $slaOrdersWithBreaches ?> order(s)
+          </div>
+        </div>
+      </a>
+
+      <!-- Paused Orders (Actionable Drilldown) -->
+      <a href="<?= APP_URL ?>/?page=orders&sla=paused<?= $filterQueryStr ?>" class="stat-card" style="text-decoration:none;color:inherit;border-left:4px solid #F59E0B;background:var(--surface-1);cursor:pointer" title="Click to view paused orders">
+        <div class="stat-icon yellow"><?= svgIcon('pause-circle', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value"><?= $slaPausedCount ?></div>
+          <div class="stat-label" style="font-weight:600;color:var(--text-primary)">Currently Paused</div>
+          <div class="stat-change text-muted font-sm">
+            <?= $slaPausedCount > 0 ? 'Active customer/access blockers →' : 'No paused installations' ?>
+          </div>
+        </div>
+      </a>
+
+      <!-- Average Lifecycle Duration -->
+      <div class="stat-card" style="border-left:4px solid #0F4C81;background:var(--surface-1)">
+        <div class="stat-icon blue"><?= svgIcon('calendar', 22) ?></div>
+        <div class="stat-info">
+          <div class="stat-value" style="font-size:1.15rem"><?= $slaAvgDuration ?></div>
+          <div class="stat-label" style="font-weight:600;color:var(--text-primary)">Avg. Duration</div>
+          <div class="stat-change text-muted font-sm">
+            <?= $slaCompletedCount > 0 ? 'Closed: ' . $slaAvgCompletedDuration : 'Active: ' . $slaAvgActiveDuration ?>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- 2. Two-Column SLA Detailed Breakdown: Stages & Bottlenecks -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:20px">
+      
+      <!-- Stage-by-Stage Performance Table -->
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700;font-size:0.95rem;color:var(--text-primary);display:flex;align-items:center;gap:6px">
+            <?= svgIcon('activity', 16) ?> Performance by Lifecycle Stage
+          </div>
+          <span class="badge badge-info" style="font-size:0.75rem">Target Matrix</span>
+        </div>
+
+        <?php if ($slaTotalEvaluated === 0): ?>
+        <div class="empty-state p-16" style="padding:24px 12px;text-align:center">
+          <div class="empty-state-title" style="font-weight:600;color:var(--text-secondary);font-size:0.9rem">No SLA orders in selected period</div>
+          <div class="empty-state-text" style="font-size:0.8rem;color:var(--text-muted)">Stage metrics will appear once orders are placed within this date range.</div>
+        </div>
+        <?php else: ?>
+        <div class="table-responsive" style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);color:var(--text-secondary);text-align:left">
+                <th style="padding:8px 6px;font-weight:600">STAGE (TARGET)</th>
+                <th style="padding:8px 6px;text-align:center;font-weight:600">EVAL</th>
+                <th style="padding:8px 6px;text-align:right;font-weight:600">AVG DURATION</th>
+                <th style="padding:8px 6px;text-align:right;font-weight:600">AVG DELAY</th>
+                <th style="padding:8px 6px;text-align:center;font-weight:600">SLA STATUS</th>
+                <th style="padding:8px 6px;text-align:right;font-weight:600">ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($slaStages as $stg): ?>
+              <tr style="border-bottom:1px solid rgba(0,0,0,0.04)">
+                <td style="padding:10px 6px;vertical-align:middle">
+                  <div style="font-weight:600;color:var(--text-primary)"><?= e($stg['name']) ?></div>
+                  <div style="font-size:0.72rem;color:var(--text-muted)">Target: <?= $stg['target_hours'] ?> hrs</div>
+                </td>
+                <td style="padding:10px 6px;text-align:center;vertical-align:middle">
+                  <span style="font-weight:600"><?= $stg['evaluated'] ?></span>
+                  <?php if ($stg['active'] > 0): ?>
+                  <span class="badge badge-warning" style="font-size:0.68rem;padding:2px 4px" title="Active in stage"><?= $stg['active'] ?> act</span>
+                  <?php endif; ?>
+                </td>
+                <td style="padding:10px 6px;text-align:right;vertical-align:middle;font-weight:500">
+                  <?= $stg['avg_formatted'] ?>
+                </td>
+                <td style="padding:10px 6px;text-align:right;vertical-align:middle;font-weight:500;color:<?= $stg['breached'] > 0 ? '#EF4444' : 'var(--text-muted)' ?>">
+                  <?= $stg['breached'] > 0 ? '+' . $stg['avg_delay_formatted'] : '—' ?>
+                </td>
+                <td style="padding:10px 6px;text-align:center;vertical-align:middle">
+                  <?php if ($stg['breached'] > 0): ?>
+                  <span class="badge badge-danger" style="font-size:0.72rem"><?= $stg['breached'] ?> breached</span>
+                  <?php elseif ($stg['evaluated'] > 0): ?>
+                  <span class="badge badge-success" style="font-size:0.72rem">100% OK</span>
+                  <?php else: ?>
+                  <span class="text-muted">—</span>
+                  <?php endif; ?>
+                </td>
+                <td style="padding:10px 6px;text-align:right;vertical-align:middle">
+                  <?php 
+                    $stageFilterStatus = match($stg['key']) {
+                      'feasibility'  => 'Feasibility Review',
+                      'commercial'   => 'Await Commercial Approval',
+                      'sof'          => 'Pending SOF',
+                      'installation' => 'Installation',
+                      'testing_uat'  => 'UAT',
+                      default        => ''
+                    };
+                  ?>
+                  <a href="<?= APP_URL ?>/?page=orders&status=<?= urlencode($stageFilterStatus) ?><?= $filterQueryStr ?>" class="btn btn-outline btn-xs" style="padding:2px 8px;font-size:0.75rem" title="View orders in <?= e($stg['name']) ?>">
+                    View →
+                  </a>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <?php endif; ?>
+      </div>
+
+      <!-- SLA Bottlenecks & Distribution Highlight -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        
+        <!-- Bottlenecks Card -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-weight:700;font-size:0.95rem;color:var(--text-primary);display:flex;align-items:center;gap:6px">
+              <?= svgIcon('alert-triangle', 16) ?> SLA Bottlenecks &amp; Delay Risks
+            </div>
+            <span class="badge <?= $slaTotalStageBreaches > 0 ? 'badge-danger' : 'badge-success' ?>" style="font-size:0.75rem">
+              <?= $slaTotalStageBreaches > 0 ? $slaTotalStageBreaches . ' Stage Delay(s)' : 'On Track' ?>
+            </span>
+          </div>
+
+          <?php 
+          $hasBottlenecks = false;
+          foreach ($slaBottlenecks as $bn) {
+              if ($bn['breached'] > 0 || ($bn['active'] > 0 && $bn['avg_sec'] > ($bn['target_hours'] * 3600))) {
+                  $hasBottlenecks = true;
+                  break;
+              }
+          }
+          ?>
+
+          <?php if (!$hasBottlenecks): ?>
+          <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:16px;display:flex;align-items:flex-start;gap:12px">
+            <div style="color:#10B981;font-size:1.3rem;line-height:1">✓</div>
+            <div>
+              <div style="font-weight:600;color:#065F46;font-size:0.88rem">No SLA breaches in selected period</div>
+              <div style="font-size:0.8rem;color:#047857;margin-top:2px">All fulfillment stages are operating within targeted response and delivery times.</div>
+            </div>
+          </div>
+          <?php else: ?>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <?php foreach ($slaBottlenecks as $bn): 
+              if ($bn['breached'] === 0 && ($bn['active'] === 0 || $bn['avg_sec'] <= ($bn['target_hours'] * 3600))) continue;
+              $stageFilterStatus = match($bn['key']) {
+                'feasibility'  => 'Feasibility Review',
+                'commercial'   => 'Await Commercial Approval',
+                'sof'          => 'Pending SOF',
+                'installation' => 'Installation',
+                'testing_uat'  => 'UAT',
+                default        => ''
+              };
+            ?>
+            <div style="background:var(--surface-1);border:1px solid <?= $bn['breached'] > 0 ? '#EF4444' : '#F59E0B' ?>;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-weight:600;font-size:0.85rem;color:var(--text-primary)"><?= e($bn['name']) ?></div>
+                <div style="font-size:0.75rem;color:var(--text-muted)">
+                  Avg Delay: <strong style="color:<?= $bn['breached'] > 0 ? '#EF4444' : '#D97706' ?>"><?= $bn['breached'] > 0 ? '+' . $bn['avg_delay_formatted'] : 'On Track' ?></strong> &middot; Target: <?= $bn['target_hours'] ?>h
+                </div>
+              </div>
+              <div style="text-align:right">
+                <?php if ($bn['breached'] > 0): ?>
+                <span class="badge badge-danger" style="font-size:0.75rem"><?= $bn['breached'] ?>/<?= $bn['evaluated'] ?> Breached (<?= $bn['breach_pct'] ?>%)</span>
+                <?php else: ?>
+                <span class="badge badge-warning" style="font-size:0.75rem">Attention</span>
+                <?php endif; ?>
+                <div style="margin-top:4px">
+                  <a href="<?= APP_URL ?>/?page=orders&status=<?= urlencode($stageFilterStatus) ?><?= $filterQueryStr ?>" style="font-size:0.72rem;color:var(--primary);font-weight:600;text-decoration:none">
+                    Investigate →
+                  </a>
+                </div>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+        </div>
+
+        <!-- SLA Status Mutually Exclusive Distribution Breakdown -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+          <div style="font-weight:600;font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+            <span>SLA Status Distribution (Mutually Exclusive)</span>
+            <span>Total: <?= $slaTotalEvaluated ?></span>
+          </div>
+          
+          <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:#E5E7EB;margin-bottom:10px">
+            <?php if ($slaTotalEvaluated > 0): 
+              $pWithin = round(($slaWithinCount / $slaTotalEvaluated) * 100);
+              $pAtRisk = round(($slaAtRiskCount / $slaTotalEvaluated) * 100);
+              $pBreach = round(($slaBreachedCount / $slaTotalEvaluated) * 100);
+              $pPaused = round(($slaPausedCount / $slaTotalEvaluated) * 100);
+            ?>
+              <div style="width:<?= $pWithin ?>%;background:#10B981" title="<?= $slaWithinCount ?> Within SLA (<?= $pWithin ?>%)"></div>
+              <div style="width:<?= $pAtRisk ?>%;background:#3B82F6" title="<?= $slaAtRiskCount ?> At Risk (<?= $pAtRisk ?>%)"></div>
+              <div style="width:<?= $pBreach ?>%;background:#EF4444" title="<?= $slaBreachedCount ?> Breached (<?= $pBreach ?>%)"></div>
+              <div style="width:<?= $pPaused ?>%;background:#F59E0B" title="<?= $slaPausedCount ?> Paused (<?= $pPaused ?>%)"></div>
+            <?php else: ?>
+              <div style="width:100%;background:#D1D5DB"></div>
+            <?php endif; ?>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-secondary);flex-wrap:wrap;gap:8px">
+            <span style="display:inline-flex;align-items:center;gap:4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#10B981;display:inline-block"></span>
+              Within SLA: <strong style="color:var(--text-primary)"><?= $slaWithinCount ?></strong>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#3B82F6;display:inline-block"></span>
+              At Risk: <strong style="color:var(--text-primary)"><?= $slaAtRiskCount ?></strong>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#EF4444;display:inline-block"></span>
+              Breached: <strong style="color:var(--text-primary)"><?= $slaBreachedCount ?></strong>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#F59E0B;display:inline-block"></span>
+              Paused: <strong style="color:var(--text-primary)"><?= $slaPausedCount ?></strong>
+            </span>
+          </div>
+
+          <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted)">
+            <span>Active In-Flight: <strong style="color:var(--text-primary)"><?= $slaActiveCount ?></strong></span>
+            <span>Completed / Closed: <strong style="color:var(--text-primary)"><?= $slaCompletedCount ?></strong></span>
+            <span>Total Stage Breaches: <strong style="color:<?= $slaTotalStageBreaches > 0 ? '#EF4444' : 'var(--text-primary)' ?>"><?= $slaTotalStageBreaches ?></strong></span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
   </div>
 </div>
 
@@ -389,16 +667,16 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
         <div class="card-title">Order Fulfillment Pipeline</div>
         <div class="card-subtitle"><?= $totalInPipeline ?> active orders progressing through stages</div>
       </div>
-      <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View Orders</a>
+      <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">View Orders</a>
     </div>
     <div class="card-body" style="padding:16px">
       <div class="pipeline-flow">
         <?php foreach ($pipelineSteps as $st):
           $cnt = $orderStats[$st] ?? 0;
           $pct = $pipelineMax > 0 ? round(($cnt / $pipelineMax) * 100) : 0;
-          $c = $chartColors[$st];
+          $c = $chartColors[$st] ?? ['bg' => '#0F4C81', 'border' => '#0A365C'];
         ?>
-        <a href="<?= APP_URL ?>/?page=orders&status=<?= urlencode($st) ?>" class="pipeline-step" style="text-decoration:none;color:inherit;cursor:pointer" title="View <?= e($st) ?> orders">
+        <a href="<?= APP_URL ?>/?page=orders&status=<?= urlencode($st) ?><?= $filterQueryStr ?>" class="pipeline-step" style="text-decoration:none;color:inherit;cursor:pointer" title="View <?= e($st) ?> orders">
           <div class="pipeline-step-icon" style="background:<?= $c['bg'] ?>20;color:<?= $c['border'] ?>">
             <?= svgIcon(
               $st === 'Feasibility Review' ? 'search' :
@@ -414,7 +692,7 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
           <div class="pipeline-step-info">
             <div class="pipeline-step-label"><?= e($st) ?></div>
             <div class="pipeline-step-bar">
-              <div class="pipeline-step-fill" style="width:0%;background:<?= $c['bg'] ?>" data-width="<?= $pct ?>"></div>
+              <div class="pipeline-step-fill" style="width:<?= $pct ?>%;background:<?= $c['bg'] ?>" data-width="<?= $pct ?>"></div>
             </div>
           </div>
           <div class="pipeline-step-count"><?= $cnt ?></div>
@@ -429,19 +707,19 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
     <div class="card-header">
       <div>
         <div class="card-title">Recent Operational Activity</div>
-        <div class="card-subtitle">Latest events &amp; lifecycle updates</div>
+        <div class="card-subtitle">Latest events in active filter period</div>
       </div>
     </div>
     <div class="card-body">
       <?php if (empty($activityTimeline)): ?>
       <div class="empty-state p-16">
         <div class="empty-state-title">No recent activity</div>
-        <div class="empty-state-text">Operational events will appear here.</div>
+        <div class="empty-state-text">No operational events recorded for the selected period.</div>
       </div>
       <?php else: ?>
       <div class="timeline">
         <?php foreach ($activityTimeline as $act):
-          $targetUrl = APP_URL . '/?page=orders';
+          $targetUrl = APP_URL . '/?page=orders' . $filterQueryStr;
         ?>
         <a href="<?= $targetUrl ?>" class="timeline-item" style="text-decoration:none;color:inherit;display:block;cursor:pointer">
           <div class="timeline-dot success"></div>
@@ -460,14 +738,14 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   </div>
 </div>
 
-<!-- Data Table 1: Recent Orders -->
+<!-- Data Table: Recent Orders -->
 <div class="card mb-24">
   <div class="card-header">
     <div>
       <div class="card-title">Recent Service Orders</div>
-      <div class="card-subtitle">Latest orders submitted across all partners</div>
+      <div class="card-subtitle">Orders submitted in the active filter period</div>
     </div>
-    <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary btn-sm">View All Orders</a>
+    <a href="<?= APP_URL ?>/?page=orders<?= $filterQueryStr ?>" class="btn btn-secondary btn-sm">View All Filtered Orders</a>
   </div>
   <div class="table-responsive">
     <table class="data-table">
@@ -484,7 +762,7 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
       </thead>
       <tbody>
         <?php if (empty($recentOrders)): ?>
-        <tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">No orders found</div></div></td></tr>
+        <tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">No service orders found</div><div class="empty-state-text">No service orders match the selected filter.</div></div></td></tr>
         <?php else: ?>
         <?php foreach ($recentOrders as $ord): ?>
         <tr>
@@ -523,61 +801,10 @@ $pipelineMax = max(1, max(array_map(fn($s) => $orderStats[$s] ?? 0, $pipelineSte
   </div>
 </div>
 
-
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var textColor = '#52525B';
   var gridColor = 'rgba(0,0,0,0.06)';
-
-  // 1. Line Chart: Monthly Orders Created vs Completed (Clickable)
-  var ctxTrend = document.getElementById('monthlyTrendChart');
-  if (ctxTrend && typeof Chart !== 'undefined') {
-    var months = <?= json_encode(array_column($monthlyTrend, 'month')) ?>;
-    var createdData = <?= json_encode(array_column($monthlyTrend, 'created')) ?>;
-    var completedData = <?= json_encode(array_column($monthlyTrend, 'completed')) ?>;
-
-    new Chart(ctxTrend, {
-      type: 'line',
-      data: {
-        labels: months,
-        datasets: [
-          {
-            label: 'Orders Created',
-            data: createdData,
-            borderColor: '#0F4C81',
-            backgroundColor: 'rgba(15,76,129,0.15)',
-            borderWidth: 2.5,
-            tension: 0.35,
-            fill: true,
-            pointRadius: 4
-          },
-          {
-            label: 'Orders Completed',
-            data: completedData,
-            borderColor: '#10B981',
-            backgroundColor: 'rgba(16,185,129,0.05)',
-            borderWidth: 2.5,
-            tension: 0.35,
-            fill: true,
-            pointRadius: 4
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        onClick: function() { window.location.href = APP_URL + '/?page=orders'; },
-        plugins: {
-          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } }
-        },
-        scales: {
-          x: { grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11 } } },
-          y: { grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11 }, stepSize: 1 } }
-        }
-      }
-    });
-  }
 
   // Shared Plugin to render exact numerical counts ABOVE vertical column bars
   var barTopValuePlugin = {
@@ -604,7 +831,60 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
 
-  // 1. Vertical Column Bar Chart: Order Status Distribution (Sorted Highest to Lowest)
+  // 1. Line Chart: Orders Created vs Completed
+  var ctxTrend = document.getElementById('monthlyTrendChart');
+  if (ctxTrend && typeof Chart !== 'undefined') {
+    var months = <?= json_encode(array_column($monthlyTrend, 'month')) ?>;
+    var createdData = <?= json_encode(array_column($monthlyTrend, 'created')) ?>;
+    var completedData = <?= json_encode(array_column($monthlyTrend, 'completed')) ?>;
+
+    new Chart(ctxTrend, {
+      type: 'line',
+      data: {
+        labels: months,
+        datasets: [
+          {
+            label: 'Orders Created',
+            data: createdData,
+            borderColor: '#0F4C81',
+            backgroundColor: 'rgba(15,76,129,0.12)',
+            borderWidth: 2.5,
+            tension: 0.35,
+            fill: true,
+            pointRadius: 4
+          },
+          {
+            label: 'Orders Completed',
+            data: completedData,
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16,185,129,0.05)',
+            borderWidth: 2.5,
+            tension: 0.35,
+            fill: true,
+            pointRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: function() { window.location.href = APP_URL + '/?page=orders<?= $filterQueryStr ?>'; },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } }
+        },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11 } } },
+          y: { 
+            beginAtZero: true,
+            grid: { color: gridColor }, 
+            ticks: { color: textColor, font: { family: 'Inter', size: 11 }, precision: 0 } 
+          }
+        }
+      }
+    });
+  }
+
+  // 2. Vertical Column Bar Chart: Order Status Distribution
   var ctxDonut = document.getElementById('statusDonutChart');
   if (ctxDonut && typeof Chart !== 'undefined') {
     <?php
@@ -647,9 +927,9 @@ document.addEventListener('DOMContentLoaded', function() {
           if (activeEls.length > 0) {
             var idx = activeEls[0].index;
             var st = statusLabels[idx];
-            window.location.href = APP_URL + '/?page=orders&status=' + encodeURIComponent(st);
+            window.location.href = APP_URL + '/?page=orders&status=' + encodeURIComponent(st) + '<?= $filterQueryStr ?>';
           } else {
-            window.location.href = APP_URL + '/?page=orders';
+            window.location.href = APP_URL + '/?page=orders<?= $filterQueryStr ?>';
           }
         },
         layout: {
@@ -667,7 +947,7 @@ document.addEventListener('DOMContentLoaded', function() {
           },
           y: {
             beginAtZero: true,
-            max: maxStatusVal + Math.ceil(maxStatusVal * 0.25) + 1,
+            max: maxStatusVal > 0 ? maxStatusVal + Math.ceil(maxStatusVal * 0.25) + 1 : 5,
             grid: { color: gridColor },
             ticks: {
               color: textColor,
@@ -691,7 +971,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 2. Vertical Column Bar Chart: Service Type Distribution (Sorted Highest to Lowest)
+  // 3. Vertical Column Bar Chart: Service Type Distribution
   var ctxSvc = document.getElementById('serviceTypeChart');
   if (ctxSvc && typeof Chart !== 'undefined') {
     <?php
@@ -726,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', function() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        onClick: function() { window.location.href = APP_URL + '/?page=orders'; },
+        onClick: function() { window.location.href = APP_URL + '/?page=orders<?= $filterQueryStr ?>'; },
         layout: {
           padding: { top: 22, left: 10, right: 10 }
         },
@@ -742,7 +1022,7 @@ document.addEventListener('DOMContentLoaded', function() {
           },
           y: {
             beginAtZero: true,
-            max: maxSvcVal + Math.ceil(maxSvcVal * 0.25) + 1,
+            max: maxSvcVal > 0 ? maxSvcVal + Math.ceil(maxSvcVal * 0.25) + 1 : 5,
             grid: { color: gridColor },
             ticks: {
               color: textColor,
@@ -768,195 +1048,6 @@ document.addEventListener('DOMContentLoaded', function() {
       plugins: [barTopValuePlugin]
     });
   }
-
-  // 3. Vertical Column Bar Chart: Network & Service Health (Dynamic mapping of operational stages)
-  var ctxNH = document.getElementById('networkHealthChart');
-  if (ctxNH && typeof Chart !== 'undefined') {
-    var totOrders  = <?= (int)$totalOrders ?>;
-    var onlineCnt  = <?= (int)($networkHealth['Online (Closed)'] ?? 0) ?>;
-    var inProgCnt  = <?= (int)($networkHealth['In Progress / Pending'] ?? 0) ?>;
-    var notFeasCnt = <?= (int)($networkHealth['Not Feasible / Cancelled'] ?? 0) ?>;
-
-    var nhLabels = ['Online / Closed', 'In Progress / Pending', 'Not Feasible / Cancelled'];
-    var nhCounts = [onlineCnt, inProgCnt, notFeasCnt];
-    var nhColors = ['#10B981', '#3B82F6', '#EF4444'];
-    var maxNhVal = Math.max.apply(null, nhCounts.concat([0]));
-
-    new Chart(ctxNH, {
-      type: 'bar',
-      data: {
-        labels: nhLabels,
-        datasets: [{
-          label: 'Orders',
-          data: nhCounts,
-          backgroundColor: nhColors,
-          borderRadius: { topLeft: 6, topRight: 6 },
-          maxBarThickness: 50
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        onClick: function() { window.location.href = APP_URL + '/?page=orders'; },
-        layout: {
-          padding: { top: 22, left: 10, right: 10 }
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: {
-              color: textColor,
-              font: { family: 'Inter', size: 11, weight: '600' },
-              autoSkip: false
-            }
-          },
-          y: {
-            beginAtZero: true,
-            max: maxNhVal + Math.ceil(maxNhVal * 0.25) + 1,
-            grid: { color: gridColor },
-            ticks: {
-              color: textColor,
-              font: { family: 'Inter', size: 11 },
-              precision: 0
-            }
-          }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                var val = context.raw || 0;
-                var pct = totOrders > 0 ? ((val / totOrders) * 100).toFixed(1) : '0.0';
-                return ' ' + context.label + ': ' + val + ' order(s) (' + pct + '%)';
-              }
-            }
-          }
-        }
-      },
-      plugins: [barTopValuePlugin]
-    });
-  }
-
-  // 5. Revenue Comparison Chart (Bar Chart: NRC vs MRC vs Total)
-  var ctxRevComp = document.getElementById('revenueComparisonChart');
-  if (ctxRevComp && typeof Chart !== 'undefined') {
-    new Chart(ctxRevComp, {
-      type: 'bar',
-      data: {
-        labels: ['NRC Revenue', 'MRC Revenue', 'Total Revenue'],
-        datasets: [{
-          label: 'Revenue (TZS Incl. VAT)',
-          data: [<?= $totalNrcRevenue ?>, <?= $totalMrcRevenue ?>, <?= $totalCombinedRevenue ?>],
-          backgroundColor: ['#3B82F6', '#10B981', '#0F4C81'],
-          borderColor: ['#2563EB', '#059669', '#0A365C'],
-          borderWidth: 1.5,
-          borderRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                var val = context.raw || 0;
-                return context.dataset.label + ': TZS ' + val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-              }
-            }
-          }
-        },
-        scales: {
-          x: { grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11, weight: '600' } } },
-          y: { 
-            grid: { color: gridColor }, 
-            ticks: { 
-              color: textColor, 
-              font: { family: 'Inter', size: 11 },
-              callback: function(value) { return 'TZS ' + value.toLocaleString(); }
-            } 
-          }
-        }
-      }
-    });
-  }
-
-  // 6. Revenue Trend Chart (Bar + Line Chart over time)
-  var ctxRevTrend = document.getElementById('revenueTrendChart');
-  if (ctxRevTrend && typeof Chart !== 'undefined') {
-    var trendMonths = <?= json_encode(array_column($revenueTrend, 'month')) ?>;
-    var trendNrc    = <?= json_encode(array_column($revenueTrend, 'nrc')) ?>;
-    var trendMrc    = <?= json_encode(array_column($revenueTrend, 'mrc')) ?>;
-    var trendTotal  = <?= json_encode(array_column($revenueTrend, 'total')) ?>;
-
-    new Chart(ctxRevTrend, {
-      type: 'bar',
-      data: {
-        labels: trendMonths,
-        datasets: [
-          {
-            type: 'bar',
-            label: 'NRC (One-time)',
-            data: trendNrc,
-            backgroundColor: 'rgba(59, 130, 246, 0.85)',
-            borderColor: '#2563EB',
-            borderWidth: 1,
-            borderRadius: 4,
-            stack: 'combined'
-          },
-          {
-            type: 'bar',
-            label: 'MRC (Recurring)',
-            data: trendMrc,
-            backgroundColor: 'rgba(16, 185, 129, 0.85)',
-            borderColor: '#059669',
-            borderWidth: 1,
-            borderRadius: 4,
-            stack: 'combined'
-          },
-          {
-            type: 'line',
-            label: 'Total Revenue',
-            data: trendTotal,
-            borderColor: '#0F4C81',
-            backgroundColor: 'transparent',
-            borderWidth: 2.5,
-            tension: 0.3,
-            pointRadius: 4,
-            pointBackgroundColor: '#0F4C81'
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Inter', size: 11 } } },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                var val = context.raw || 0;
-                return context.dataset.label + ': TZS ' + val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-              }
-            }
-          }
-        },
-        scales: {
-          x: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter', size: 11 } } },
-          y: { 
-            stacked: false, 
-            grid: { color: gridColor }, 
-            ticks: { 
-              color: textColor, 
-              font: { family: 'Inter', size: 11 },
-              callback: function(value) { return 'TZS ' + value.toLocaleString(); }
-            } 
-          }
-        }
-      }
-    });
-  }
 });
 </script>
+

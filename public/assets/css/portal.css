@@ -1826,6 +1826,40 @@ select.form-control option {
 }
 .input-addon:hover { background: var(--surface-hover); color: var(--text-primary); }
 
+/* ── Controlled Currency Input Component ── */
+.currency-input-group {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  width: 100%;
+}
+.currency-input-group .input-group-text,
+.currency-input-group .currency-badge {
+  padding: 8px 12px;
+  background: var(--surface-3, #f1f5f9);
+  border: 1.5px solid var(--border, #cbd5e1);
+  border-right: none;
+  border-radius: var(--radius-sm, 6px) 0 0 var(--radius-sm, 6px);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary, #0F4C81);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+.currency-input-group .currency-input {
+  border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0 !important;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+}
+.currency-input-group:focus-within .currency-badge {
+  border-color: var(--primary, #0F4C81);
+  background: rgba(15, 76, 129, 0.08);
+}
+
 /* File input */
 .file-input-wrapper {
   border: 1.5px dashed var(--border);
@@ -3003,4 +3037,189 @@ img, svg, canvas, iframe, video {
 .checklist-item:last-child { border-bottom: none; }
 .checklist-item.done { color: var(--success); }
 .checklist-item.missing { color: var(--danger); }
+
+/* ============================================================
+   Universal File Input Preview & Delete/Replace Widget
+   ============================================================ */
+.file-selection-preview {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.file-selection-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  animation: fadeIn 0.2s ease;
+  transition: all 0.2s ease;
+}
+.file-selection-item:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+}
+.file-selection-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.file-selection-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+.file-selection-icon {
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.file-selection-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-selection-size {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.file-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+}
+
+/* ============================================================
+   System-Wide File Action Buttons & Uploaded Status Standard
+   ============================================================ */
+.btn-file-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 9999px; /* Compact pill shape */
+  background: var(--surface-2, #f1f5f9);
+  color: var(--text-primary, #334155);
+  border: 1px solid var(--border, #e2e8f0);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  line-height: 1.2;
+  box-sizing: border-box;
+  user-select: none;
+}
+.btn-file-action:hover {
+  background: var(--surface-hover, #e2e8f0);
+  color: var(--text-primary, #0f172a);
+  border-color: #cbd5e1;
+}
+.btn-file-action.btn-file-view:hover {
+  background: #e0f2fe;
+  color: #0284c7;
+  border-color: #bae6fd;
+}
+.btn-file-action.btn-file-replace:hover {
+  background: #e0e7ff;
+  color: #4f46e5;
+  border-color: #c7d2fe;
+}
+.btn-file-action.btn-file-delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+.btn-file-action.btn-file-download:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+/* Uploaded Status Indicator */
+.badge-uploaded {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  white-space: nowrap;
+}
+
+/* Universal File Preview Modal Styles */
+.file-preview-modal-body {
+  max-height: 75vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--surface-1);
+}
+.file-preview-image {
+  max-width: 100%;
+  max-height: 68vh;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  object-fit: contain;
+}
+.file-preview-pdf-frame {
+  width: 100%;
+  height: 68vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.file-preview-csv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.file-preview-csv-table th {
+  background: var(--surface-2);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+.file-preview-csv-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.file-preview-doc-box {
+  text-align: center;
+  padding: 40px 20px;
+}
+.file-preview-doc-icon {
+  font-size: 4rem;
+  margin-bottom: 12px;
+}
+.file-preview-doc-meta {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
 

@@ -91,16 +91,16 @@
           <input type="text" name="apartment_number" class="form-control" placeholder="e.g. Apt 12B">
         </div>
         <div class="form-group">
-          <label>Contact Name</label>
-          <input type="text" name="customer_contact_name" class="form-control" placeholder="Contact person">
+          <label>Contact Person Name <span class="required">*</span></label>
+          <input type="text" name="customer_contact_name" class="form-control" placeholder="Contact person full name" required>
         </div>
         <div class="form-group">
-          <label>Contact Phone</label>
-          <input type="tel" name="customer_contact_phone" class="form-control" placeholder="+255 7xx xxx xxx">
+          <label>Contact Phone <span class="required">*</span></label>
+          <input type="tel" name="customer_contact_phone" class="form-control" placeholder="+255 7xx xxx xxx" required>
         </div>
         <div class="form-group">
-          <label>Contact Email</label>
-          <input type="email" name="customer_contact_email" class="form-control" placeholder="customer@example.com">
+          <label>Contact Email <span class="required">*</span></label>
+          <input type="email" name="customer_contact_email" class="form-control" placeholder="customer@example.com" required>
         </div>
       </div>
     </div>
@@ -166,10 +166,10 @@
           <label>Committed Minimum Service Term</label>
           <select name="contract_term" id="contractTerm" class="form-control">
             <option value="">— Select Term —</option>
-            <option value="Month to Month">Month to Month</option>
             <option value="12 Months">12 Months</option>
             <option value="24 Months">24 Months</option>
             <option value="36 Months">36 Months</option>
+            <option value="Month to Month">Month to Month</option>
           </select>
         </div>
 
@@ -264,7 +264,7 @@
     <div class="form-section">
       <div class="form-section-title"><?= svgIcon('document', 16) ?> Supporting Documents (Optional)</div>
       <div class="file-input-wrapper" id="dropZone" onclick="if(event.target.tagName !== 'INPUT') document.getElementById('fileInput').click()">
-        <input type="file" name="documents[]" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls,.csv" onchange="renderSelectedFiles(this)">
+        <input type="file" name="documents[]" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls,.csv" data-custom-preview-container="#filePreviewList">
         <div class="file-input-icon"><?= svgIcon('upload', 32) ?></div>
         <div class="file-input-text"><strong>Click to upload</strong> or drag and drop</div>
         <div class="file-input-text" style="font-size:.75rem;margin-top:4px">PDF, DOCX, XLSX, JPG, PNG — max 10 MB each</div>

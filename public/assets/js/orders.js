@@ -142,29 +142,12 @@ function updateRemoteHands(val) {
 }
 
 function renderSelectedFiles(input) {
-  const container = document.getElementById('filePreviewList');
-  if (!container) return;
-  container.innerHTML = '';
-
-  if (!input || !input.files || input.files.length === 0) return;
-
-  Array.from(input.files).forEach((file) => {
-    const item = document.createElement('div');
-    item.style.cssText = 'display:flex;align-items:center;justify-space-between;background:var(--surface-hover);border:1px solid var(--border);padding:8px 14px;border-radius:6px;font-size:.875rem;color:var(--text-primary);';
-    
-    const sizeStr = (file.size >= 1048576) ? (file.size / 1048576).toFixed(1) + ' MB' : Math.round(file.size / 1024) + ' KB';
-    
-    item.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.1rem">📄</span>
-        <strong>${file.name}</strong>
-        <span style="color:var(--text-muted);font-size:.75rem">(${sizeStr})</span>
-      </div>
-      <span style="color:var(--success);font-weight:600;font-size:.75rem;margin-left:auto">Ready to upload</span>
-    `;
-    container.appendChild(item);
-  });
+  if (typeof window.renderFileInputPreview === 'function') {
+    window.renderFileInputPreview(input);
+  }
 }
+
+window.renderSelectedFiles = renderSelectedFiles;
 
 document.addEventListener('DOMContentLoaded', function() {
   const dropZone = document.getElementById('dropZone');
@@ -192,8 +175,26 @@ document.addEventListener('DOMContentLoaded', function() {
   dropZone.addEventListener('drop', (e) => {
     const dt = e.dataTransfer;
     if (dt && dt.files && dt.files.length > 0) {
-      fileInput.files = dt.files;
-      renderSelectedFiles(fileInput);
+      const existing = Array.from(fileInput.files || []);
+      const incoming = Array.from(dt.files);
+      const dedupeFn = window.deduplicateFiles || function(arr) {
+        const seen = new Set();
+        return arr.filter(f => {
+          const k = `${f.name}_${f.size}_${f.lastModified || 0}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+      };
+
+      const merged = dedupeFn([...existing, ...incoming]);
+      try {
+        const newDt = new DataTransfer();
+        merged.forEach(f => newDt.items.add(f));
+        fileInput.files = newDt.files;
+      } catch (err) {}
+
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }, false);
 });

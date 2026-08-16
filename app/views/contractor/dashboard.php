@@ -48,11 +48,25 @@
               'Returned' => 'badge-danger',
               default => 'badge-secondary'
           };
+          $svc = trim($a['service_type'] ?? '');
+          if ($svc === '') {
+              if (!empty($a['fttx_package'])) {
+                  $svc = 'FTTH';
+              } elseif (!empty($a['aggregate_capacity'])) {
+                  $svc = 'Layer 2 (last mile)';
+              } elseif (!empty($a['bandwidth'])) {
+                  $svc = 'BIA (Broadband Internet Access)';
+              } elseif ((float)($a['remote_hands_nrc_usd'] ?? 0) > 0 || (float)($a['base_nrc_usd'] ?? 0) == 80000 || (float)($a['standard_nrc'] ?? 0) == 80000) {
+                  $svc = 'Remote Hands Only';
+              } else {
+                  $svc = 'Service not specified';
+              }
+          }
         ?>
         <tr>
           <td class="font-600"><?= e($a['order_number']) ?></td>
           <td><?= e($a['customer_name']) ?></td>
-          <td><span class="badge badge-primary"><?= e($a['service_type']) ?></span></td>
+          <td><span class="badge badge-primary"><?= e($svc) ?></span></td>
           <td class="text-muted font-sm"><?= e($a['customer_location'] ?: '—') ?></td>
           <?php if (!isContractorUser()): ?><td><?= e($a['contractor_name'] ?? '—') ?></td><?php endif; ?>
           <td><span class="badge <?= $statusClass ?>"><?= e($a['status']) ?></span></td>

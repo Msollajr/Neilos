@@ -73,6 +73,13 @@ $currentPage = $_GET['page'] ?? 'dashboard';
                     'permission' => 'orders.create',
                 ],
                 [
+                    'key'        => 'ftth_bulk',
+                    'title'      => 'FTTH Bulk Upload',
+                    'url'        => APP_URL . '/?page=ftth_bulk',
+                    'icon'       => 'upload',
+                    'permission' => 'orders.bulk',
+                ],
+                [
                     'key'        => 'orders',
                     'title'      => 'Order Tracking',
                     'url'        => APP_URL . '/?page=orders',
@@ -152,6 +159,13 @@ $currentPage = $_GET['page'] ?? 'dashboard';
                     'url'        => APP_URL . '/?page=users',
                     'icon'       => 'users',
                     'permission' => 'users.view',
+                ],
+                [
+                    'key'        => 'settings',
+                    'title'      => 'Company Settings',
+                    'url'        => APP_URL . '/?page=settings',
+                    'icon'       => 'settings',
+                    'permission' => 'admin.settings',
                 ],
                 [
                     'key'        => 'activity_logs',

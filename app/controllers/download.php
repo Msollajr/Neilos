@@ -49,7 +49,7 @@ if ($table && $id > 0) {
     }
     // 4. Orders Table (SOF signed / countersigned)
     elseif ($table === 'orders') {
-        $validColumns = ['sof_signed_file', 'countersigned_sof_file'];
+        $validColumns = ['sof_signed_file', 'countersigned_sof_file', 'signed_sof_file'];
         if (in_array($column, $validColumns)) {
             $stmt = $db->prepare("SELECT $column, order_number FROM orders WHERE id = ?");
             $stmt->execute([$id]);
@@ -60,23 +60,30 @@ if ($table && $id > 0) {
             }
         }
     }
-    // 5. KYC Applications Table (countersigned KYC)
+    // 5. KYC Applications Table (All KYC compliance & legal documents)
     elseif ($table === 'partner_kyc_applications') {
-        $validColumns = ['countersigned_kyc_file'];
+        $validColumns = [
+            'cert_incorporation', 'tin_certificate', 'vat_certificate', 
+            'business_license', 'tax_clearance', 'osha_compliance', 
+            'wcf_registration', 'board_resolution', 'nda_doc', 
+            'countersigned_kyc_file', 'brela_search_doc', 'power_of_attorney', 'director_ids'
+        ];
         if (in_array($column, $validColumns)) {
             $stmt = $db->prepare("SELECT $column, countersigned_kyc_filename FROM partner_kyc_applications WHERE id = ?");
             $stmt->execute([$id]);
             $row = $stmt->fetch();
             if ($row && !empty($row[$column])) {
                 $filePath = $row[$column];
-                $fileName = $row['countersigned_kyc_filename'] ?: basename($filePath);
+                $fileName = ($column === 'countersigned_kyc_file' && !empty($row['countersigned_kyc_filename'])) 
+                    ? $row['countersigned_kyc_filename'] 
+                    : basename($filePath);
             }
         }
     }
 } elseif (!empty($rawFile)) {
     // Direct sanitized relative path fallback
     $sanitized = ltrim(str_replace(['..', "\0"], '', $rawFile), '/\\');
-    if (strpos($sanitized, 'uploads/') === 0 || strpos($sanitized, 'orders/') === 0 || strpos($sanitized, 'kyc/') === 0) {
+    if (strpos($sanitized, 'uploads/') === 0 || strpos($sanitized, 'orders/') === 0 || strpos($sanitized, 'kyc/') === 0 || strpos($sanitized, 'assets/') === 0) {
         $filePath = $sanitized;
         $fileName = basename($filePath);
     }
@@ -88,11 +95,15 @@ if (empty($filePath)) {
     exit;
 }
 
-$relativePath = ltrim($filePath, '/\\');
+$relativePath = ltrim(str_replace('\\', '/', $filePath), '/');
 $fullPath = PUBLIC_DIR . '/' . $relativePath;
 
 if (!file_exists($fullPath) || !is_file($fullPath)) {
     $fullPath = dirname(APP_DIR) . '/public/' . $relativePath;
+}
+
+if (!file_exists($fullPath) || !is_file($fullPath)) {
+    $fullPath = dirname(APP_DIR) . '/' . $relativePath;
 }
 
 if (!file_exists($fullPath) || !is_file($fullPath)) {
@@ -106,6 +117,8 @@ if (!$fileName) {
 }
 
 $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
+$isInline = (isset($_GET['inline']) && ($_GET['inline'] === '1' || $_GET['inline'] === 'true')) || (isset($_GET['view']) && $_GET['view'] === '1');
+$disposition = $isInline ? 'inline' : 'attachment';
 
 if (ob_get_level()) {
     ob_end_clean();
@@ -113,7 +126,7 @@ if (ob_get_level()) {
 
 header('Content-Description: File Transfer');
 header('Content-Type: ' . $mimeType);
-header('Content-Disposition: attachment; filename="' . str_replace(['"', "'", "\r", "\n"], '', $fileName) . '"');
+header('Content-Disposition: ' . $disposition . '; filename="' . str_replace(['"', "'", "\r", "\n"], '', $fileName) . '"');
 header('Content-Transfer-Encoding: binary');
 header('Expires: 0');
 header('Cache-Control: must-revalidate, post-check=0, pre-check=0');

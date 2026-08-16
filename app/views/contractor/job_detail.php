@@ -3,11 +3,26 @@ $isContractorView = isContractorUser();
 $jobStatus = $assignment['status'];
 $canUpdate = $isContractorView ? in_array($jobStatus, ['Assigned','Accepted','In Progress','Returned']) : true;
 $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress','Returned']) : true;
+
+$svc = trim($assignment['service_type'] ?? '');
+if ($svc === '') {
+    if (!empty($assignment['fttx_package'])) {
+        $svc = 'FTTH';
+    } elseif (!empty($assignment['aggregate_capacity'])) {
+        $svc = 'Layer 2 (last mile)';
+    } elseif (!empty($assignment['bandwidth'])) {
+        $svc = 'BIA (Broadband Internet Access)';
+    } elseif ((float)($assignment['remote_hands_nrc_usd'] ?? 0) > 0 || (float)($assignment['base_nrc_usd'] ?? 0) == 80000 || (float)($assignment['standard_nrc'] ?? 0) == 80000) {
+        $svc = 'Remote Hands Only';
+    } else {
+        $svc = 'Service not specified';
+    }
+}
 ?>
 <div class="page-header">
   <div class="page-header-left">
     <div class="page-title">Job: <?= e($assignment['order_number']) ?></div>
-    <div class="page-subtitle"><?= e($assignment['service_type']) ?> · <?= e($assignment['customer_name']) ?> · <?= e($assignment['customer_location'] ?: '—') ?></div>
+    <div class="page-subtitle"><?= e($svc) ?> · <?= e($assignment['customer_name']) ?> · <?= e($assignment['customer_location'] ?: '—') ?></div>
   </div>
   <div class="page-header-actions">
     <a href="<?= APP_URL ?>/?page=contractor" class="btn btn-secondary"><?= svgIcon('list') ?> All Jobs</a>
@@ -72,7 +87,7 @@ $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress',
           <div class="card-title" style="display:flex;align-items:center;gap:8px;font-size:1rem">
             <?= svgIcon('check', 18) ?> Evidence Checklist
           </div>
-          <div class="card-subtitle" style="font-size:0.78rem">Order requirement (<?= e($assignment['service_type']) ?>)</div>
+          <div class="card-subtitle" style="font-size:0.78rem">Order requirement (<?= e($svc) ?>)</div>
         </div>
         <div>
           <?php if ($totalChecklistItems > 0): ?>
@@ -143,12 +158,12 @@ $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress',
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap">
               <?php if ($isUploaded): ?>
                 <!-- Uploaded Status (Required badge removed when uploaded) -->
-                <span class="badge badge-success" style="font-size:0.68rem;padding:3px 8px;display:inline-flex;align-items:center;gap:3px;font-weight:600">
-                  <?= svgIcon('check', 11) ?> Uploaded (<?= (int)$item['uploaded'] ?>)
+                <span class="badge-uploaded">
+                  ✓ Uploaded (<?= (int)$item['uploaded'] ?>)
                 </span>
 
                 <!-- 1. View Button -->
-                <button type="button" class="btn btn-xs btn-outline-primary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation(); openEvidenceFilesModal(<?= htmlspecialchars(json_encode([
+                <button type="button" class="btn-file-action btn-file-view" onclick="event.stopPropagation(); openEvidenceFilesModal(<?= htmlspecialchars(json_encode([
                   'evidence_type' => $item['evidence_type'],
                   'is_mandatory'  => $item['is_mandatory'],
                   'assignment_id' => $assignment['id'],
@@ -159,7 +174,7 @@ $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress',
                 </button>
 
                 <!-- 2. Replace Button -->
-                <button type="button" class="btn btn-xs btn-outline-secondary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation(); triggerReplaceForEvidence('<?= e($item['evidence_type']) ?>')" title="Upload replacement file for this item">
+                <button type="button" class="btn-file-action btn-file-replace" onclick="event.stopPropagation(); triggerReplaceForEvidence('<?= e($item['evidence_type']) ?>')" title="Upload replacement file for this item">
                   <?= svgIcon('edit', 13) ?> Replace
                 </button>
 
@@ -169,7 +184,7 @@ $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress',
                   <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                   <input type="hidden" name="evidence_id" value="<?= $latestFile['id'] ?>">
                   <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
-                  <button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" title="Delete uploaded file">
+                  <button type="submit" class="btn-file-action btn-file-delete" title="Delete uploaded file">
                     <?= svgIcon('trash', 13) ?> Delete
                   </button>
                 </form>
@@ -272,6 +287,7 @@ $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress',
             <option value="ONT/ONU Serial">ONT/ONU Serial</option>
             <option value="Signal Test">Signal Test</option>
             <option value="Speed Test">Speed Test</option>
+            <option value="Ping Test">Ping Test</option>
             <option value="Latency Test">Latency Test</option>
             <option value="UAT Sign-off">UAT Sign-off</option>
             <option value="Installation Remarks">Installation Remarks</option>
@@ -283,8 +299,8 @@ $canSubmit = $isContractorView ? in_array($jobStatus, ['Accepted','In Progress',
           <input type="text" name="serial_number" id="serial_number_input" class="form-control" placeholder="e.g. HWTC1234567">
         </div>
         <div class="col-md-8" id="fileCol">
-          <label class="form-label">File <span class="text-muted font-sm">(photo/PDF/doc)</span></label>
-          <input type="file" name="evidence_file" id="evidence_file_input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.doc,.docx">
+          <label class="form-label">Files <span class="text-muted font-sm">(Multiple photos / screenshots / PDFs supported)</span></label>
+          <input type="file" name="evidence_files[]" id="evidence_file_input" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png,.xlsx,.doc,.docx">
         </div>
       </div>
 
@@ -389,6 +405,18 @@ document.addEventListener('DOMContentLoaded', function() {
         <label>Notes <span class="required">*</span></label>
         <textarea name="notes" class="form-control" rows="3" placeholder="Describe current progress, observations, or issues..." required></textarea>
       </div>
+
+      <div style="display:flex;gap:20px;margin-bottom:16px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.875rem">
+          <input type="checkbox" name="is_blocker" value="1" id="blockerCheck">
+          <span style="font-weight:600;color:var(--danger)">⚠️ Report as Blocker (Pauses SLA clock)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.875rem">
+          <input type="checkbox" name="is_resumed" value="1" id="resumedCheck">
+          <span style="font-weight:600;color:var(--success)">▶️ Installation Resumed (Resumes SLA clock)</span>
+        </label>
+      </div>
+
       <button type="submit" class="btn btn-secondary"><?= svgIcon('save') ?> Post Update</button>
     </form>
   </div>

@@ -145,6 +145,7 @@ function getAllPermissionCatalog(): array {
         ],
         'Order Lifecycle' => [
             'orders.create'      => 'Create New Service Order',
+            'orders.bulk'        => 'FTTH Bulk Upload',
             'orders.view'        => 'View Order Tracking & Details',
             'orders.edit'        => 'Edit Service Orders',
             'orders.approve'     => 'Approve / Commercial Management',
@@ -167,6 +168,7 @@ function getAllPermissionCatalog(): array {
             'contractors.manage' => 'Manage Contractors Profile',
             'users.view'         => 'View User Management',
             'users.manage'       => 'Manage Users & Configure Permissions',
+            'admin.settings'     => 'Company Settings',
             'activity_logs.view' => 'View Activity Logs',
         ],
     ];
@@ -178,19 +180,19 @@ function getAllPermissionCatalog(): array {
 function getRoleDefaultPermissions(string $role): array {
     return match ($role) {
         'System Admin', 'Admin' => [
-            'dashboard.view', 'orders.create', 'orders.view', 'orders.edit', 'orders.approve', 'orders.delete',
+            'dashboard.view', 'orders.create', 'orders.bulk', 'orders.view', 'orders.edit', 'orders.approve', 'orders.delete',
             'contractors.view', 'contractors.assign',
             'kyc.view', 'kyc.create', 'kyc.approve', 'kyc.reject', 'sla.view',
-            'partners.view', 'partners.manage', 'contractors.manage', 'users.view', 'users.manage', 'activity_logs.view'
+            'partners.view', 'partners.manage', 'contractors.manage', 'users.view', 'users.manage', 'admin.settings', 'activity_logs.view'
         ],
         'Management' => [
-            'dashboard.view', 'orders.create', 'orders.view', 'orders.edit', 'orders.approve',
+            'dashboard.view', 'orders.create', 'orders.bulk', 'orders.view', 'orders.edit', 'orders.approve',
             'contractors.view', 'contractors.assign',
             'kyc.view', 'kyc.create', 'kyc.approve', 'kyc.reject', 'sla.view',
-            'partners.view', 'partners.manage', 'contractors.manage', 'users.view', 'users.manage', 'activity_logs.view'
+            'partners.view', 'partners.manage', 'contractors.manage', 'users.view', 'users.manage', 'admin.settings', 'activity_logs.view'
         ],
         'KAM' => [
-            'dashboard.view', 'orders.create', 'orders.view', 'orders.edit',
+            'dashboard.view', 'orders.view', 'orders.edit',
             'kyc.view', 'kyc.create', 'sla.view'
         ],
         'BSA' => [
@@ -203,7 +205,7 @@ function getRoleDefaultPermissions(string $role): array {
             'kyc.view', 'kyc.create', 'sla.view'
         ],
         'Partner', 'Partner User' => [
-            'dashboard.view', 'orders.create', 'orders.view',
+            'dashboard.view', 'orders.create', 'orders.bulk', 'orders.view',
             'kyc.view', 'kyc.approve', 'kyc.reject', 'sla.view'
         ],
         'Contractor', 'Contractor User' => [

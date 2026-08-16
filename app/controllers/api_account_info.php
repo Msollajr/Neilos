@@ -8,6 +8,8 @@ header('Content-Type: application/json; charset=utf-8');
 if (!isLoggedIn()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
+}
+
 $db = getDB();
 
 if (($_GET['action'] ?? '') === 'dashboard_metrics') {

@@ -728,22 +728,25 @@ function initAccountLookupSystem() {
     });
   }
 
-  // Handle dropdown change event on any page for account lookup
+  // Handle dropdown change event ONLY for explicitly designated account lookup elements
   document.addEventListener('change', (e) => {
     const target = e.target;
     if (!target || target.tagName !== 'SELECT') return;
 
-    const name = target.name || '';
-    const id = target.id || '';
-    const isPartner = name.includes('partner_id') || id.includes('partner_id') || target.dataset.lookupType === 'partner';
-    const isContractor = name.includes('contractor') || id.includes('contractor') || target.dataset.lookupType === 'contractor';
+    // Explicitly exclude assignment, order workflow, filter, or marked opt-out selects
+    if (target.dataset.noLookup === 'true' || target.closest('[data-no-lookup="true"]') || target.closest('form[action*="assign_contractor"]') || target.closest('form[action*="orders"]')) {
+      return;
+    }
 
-    if (!isPartner && !isContractor) return;
+    // Must be explicitly marked for account lookup modal
+    const hasExplicitLookup = target.dataset.accountLookup === 'true' || !!target.dataset.lookupType || target.classList.contains('account-lookup-trigger');
+    if (!hasExplicitLookup) return;
+
+    const lookupType = target.dataset.lookupType || (target.name.includes('contractor') ? 'contractor' : 'partner');
     const val = target.value;
     if (!val || val === '0' || val === '') return;
 
-    const lookupType = isContractor ? 'contractor' : 'partner';
-    showToast('Loading account information...', 'info', 20000);
+    showToast('Loading account information...', 'info', 4000);
 
     const baseUrl = window.APP_URL || '';
     const apiUrl = `${baseUrl}/?page=api_account_info&id=${encodeURIComponent(val)}&type=${lookupType}`;
@@ -752,7 +755,7 @@ function initAccountLookupSystem() {
       .then(res => res.json())
       .then(res => {
         if (!res.success || !res.data) {
-          showToast('Unable to load account information. Please try again.', 'danger', 20000);
+          showToast('Unable to load account information. Please try again.', 'danger', 4000);
           return;
         }
 
@@ -783,7 +786,7 @@ function initAccountLookupSystem() {
         document.body.style.overflow = 'hidden';
       })
       .catch(err => {
-        showToast('Unable to load account information. Please try again.', 'danger', 20000);
+        showToast('Unable to load account information. Please try again.', 'danger', 4000);
       });
   });
 }
@@ -826,37 +829,64 @@ function viewSystemFile(fileUrl, fileName, downloadUrl, metadata = {}) {
 
   if (!modal || !body) return;
 
+  const baseUrl = (typeof APP_URL !== 'undefined' ? APP_URL : window.location.origin + '/Neilos/public');
+  let resolvedViewUrl = fileUrl || downloadUrl || '';
+  
+  if (resolvedViewUrl && !resolvedViewUrl.startsWith('http://') && !resolvedViewUrl.startsWith('https://') && !resolvedViewUrl.startsWith('blob:') && !resolvedViewUrl.startsWith('data:')) {
+    if (resolvedViewUrl.startsWith('/')) {
+      resolvedViewUrl = baseUrl + resolvedViewUrl;
+    } else {
+      resolvedViewUrl = baseUrl + '/' + resolvedViewUrl.replace(/^(\.\/|\/)/, '');
+    }
+  }
+
+  // If downloadUrl is provided and points to download controller, prefer inline download controller URL
+  if (downloadUrl && (downloadUrl.includes('page=download') || downloadUrl.includes('page=orders&action=generate_sof'))) {
+    resolvedViewUrl = downloadUrl + (downloadUrl.includes('inline=1') ? '' : '&inline=1');
+  } else if (resolvedViewUrl.includes('page=download') && !resolvedViewUrl.includes('inline=1')) {
+    resolvedViewUrl += '&inline=1';
+  }
+
   if (title) title.textContent = fileName || 'Document Preview';
   if (subtitle) subtitle.textContent = metadata.subtitle || 'In-App Document Preview';
   if (downloadBtn) {
     downloadBtn.href = downloadUrl || fileUrl;
+    downloadBtn.setAttribute('download', fileName || '');
   }
 
-  const ext = (fileName || fileUrl).split('.').pop().toLowerCase();
+  const ext = (fileName || fileUrl || '').split('?')[0].split('.').pop().toLowerCase();
   const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
   const isPdf = (ext === 'pdf');
 
   let previewHtml = '';
   if (isImg) {
-    previewHtml = `<div style="text-align:center;background:#000;border-radius:8px;padding:12px;max-height:450px;overflow:hidden;margin-bottom:16px">
-      <img src="${fileUrl}" alt="${fileName}" style="max-height:420px;max-width:100%;object-fit:contain;border-radius:4px">
+    previewHtml = `<div style="text-align:center;background:var(--surface-1);border:1px solid var(--border);border-radius:8px;padding:16px;max-height:500px;overflow:auto;margin-bottom:16px">
+      <img src="${resolvedViewUrl}" alt="${fileName}" style="max-height:460px;max-width:100%;object-fit:contain;border-radius:4px;box-shadow:0 2px 10px rgba(0,0,0,0.1)">
     </div>`;
   } else if (isPdf) {
     previewHtml = `<div style="margin-bottom:16px">
-      <iframe src="${fileUrl}" style="width:100%;height:450px;border:1px solid var(--border);border-radius:8px"></iframe>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <a href="${resolvedViewUrl}" target="_blank" class="btn btn-xs btn-outline-primary" style="display:inline-flex;align-items:center;gap:4px">
+          ↗ Open in New Window
+        </a>
+      </div>
+      <iframe src="${resolvedViewUrl}" style="width:100%;height:500px;border:1px solid var(--border);border-radius:8px;background:#fff"></iframe>
     </div>`;
   } else {
-    previewHtml = `<div style="display:flex;align-items:center;gap:16px;padding:20px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
-      <div style="font-size:2.8rem">📄</div>
+    previewHtml = `<div style="display:flex;align-items:center;gap:16px;padding:24px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+      <div style="font-size:3rem">📄</div>
       <div>
-        <div style="font-weight:700;font-size:1.05rem;color:var(--text-primary);margin-bottom:4px">${fileName}</div>
-        <div style="font-size:0.85rem;color:var(--text-muted)">Preview is unavailable for .${ext} files. Click Download below to save the file to your computer.</div>
+        <div style="font-weight:700;font-size:1.05rem;color:var(--text-primary);margin-bottom:4px">${fileName || 'Document File'}</div>
+        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px">This document type (.${ext.toUpperCase()}) cannot be embedded directly in the browser. Click below to download and inspect it.</div>
+        <a href="${downloadUrl || resolvedViewUrl}" class="btn btn-primary btn-sm" download="${fileName}">
+          💾 Download ${fileName}
+        </a>
       </div>
     </div>`;
   }
 
   let metaHtml = '';
-  const metaKeys = Object.keys(metadata);
+  const metaKeys = Object.keys(metadata).filter(k => k !== 'subtitle');
   if (metaKeys.length > 0) {
     metaHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px;font-size:0.82rem;background:var(--surface-1);padding:12px 16px;border-radius:6px;border:1px solid var(--border)">';
     if (metadata.uploaded_by) metaHtml += `<div><strong style="color:var(--text-muted)">Uploaded By:</strong> ${metadata.uploaded_by}</div>`;
@@ -876,8 +906,176 @@ function closeGlobalFileViewModal() {
   if (modal) {
     modal.classList.remove('open');
     document.body.style.overflow = '';
+    const body = document.getElementById('globalFileModalBody');
+    if (body) body.innerHTML = '';
   }
 }
+
+function ensureUniversalFilePreviewModal() {
+  let modal = document.getElementById('universalFilePreviewModal');
+  if (modal) return modal;
+
+  modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'universalFilePreviewModal';
+  modal.style.zIndex = '99999';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:850px;width:95%;max-height:92vh;display:flex;flex-direction:column;border-radius:var(--radius);overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.3)">
+      <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--surface-1)">
+        <div style="display:flex;align-items:center;gap:10px;overflow:hidden">
+          <span id="ufpModalIcon" style="font-size:1.4rem">📄</span>
+          <div style="overflow:hidden">
+            <div class="modal-title" id="ufpModalTitle" style="font-size:1rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">File Preview</div>
+            <div id="ufpModalSubtitle" style="font-size:0.75rem;color:var(--text-muted)">Staged file · Not submitted yet</div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-icon btn-secondary" onclick="closeUniversalFilePreview()" style="font-size:1.1rem;border:none;background:transparent;cursor:pointer;padding:4px 8px">✕</button>
+      </div>
+      <div class="modal-body file-preview-modal-body" id="ufpModalBody" style="padding:20px;flex:1;overflow:auto;background:var(--surface-2)">
+        <!-- Dynamic Preview Content -->
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-top:1px solid var(--border);background:var(--surface-1)">
+        <a id="ufpModalDownload" href="#" download="" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+          💾 Download / Open File
+        </a>
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeUniversalFilePreview()">Done Reviewing</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeUniversalFilePreview();
+  });
+
+  return modal;
+}
+
+function closeUniversalFilePreview() {
+  const modal = document.getElementById('universalFilePreviewModal');
+  if (modal) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    const body = document.getElementById('ufpModalBody');
+    if (body) body.innerHTML = '';
+  }
+}
+
+function openUniversalFilePreview(file) {
+  if (!file) return;
+  const modal = ensureUniversalFilePreviewModal();
+  const titleEl = document.getElementById('ufpModalTitle');
+  const subEl = document.getElementById('ufpModalSubtitle');
+  const iconEl = document.getElementById('ufpModalIcon');
+  const bodyEl = document.getElementById('ufpModalBody');
+  const dlEl = document.getElementById('ufpModalDownload');
+
+  const ext = (file.name || '').split('.').pop().toLowerCase();
+  const isImg = file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(ext);
+  const isPdf = file.type === 'application/pdf' || ext === 'pdf';
+  const isCsv = ext === 'csv' || file.type === 'text/csv';
+  const isText = ['txt', 'log', 'json', 'xml', 'sql', 'md'].includes(ext) || file.type.startsWith('text/');
+
+  titleEl.textContent = file.name;
+  subEl.textContent = `${formatUploadedFileSize(file.size)} · ${file.type || ext.toUpperCase()} · Staged file (review before submit)`;
+  iconEl.textContent = getUploadedFileIcon(file.name);
+
+  const fileUrl = URL.createObjectURL(file);
+  dlEl.href = fileUrl;
+  dlEl.download = file.name;
+  bodyEl.innerHTML = '';
+
+  if (isImg) {
+    const img = document.createElement('img');
+    img.src = fileUrl;
+    img.className = 'file-preview-image';
+    img.alt = file.name;
+    bodyEl.appendChild(img);
+  } else if (isPdf) {
+    const iframe = document.createElement('iframe');
+    iframe.src = fileUrl;
+    iframe.className = 'file-preview-pdf-frame';
+    bodyEl.appendChild(iframe);
+  } else if (isCsv) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim().length > 0);
+      if (lines.length === 0) {
+        bodyEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">The CSV file is empty.</div>';
+        return;
+      }
+      
+      const rows = lines.slice(0, 100).map(line => {
+        const row = [];
+        let inQuotes = false;
+        let curVal = '';
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { inQuotes = !inQuotes; }
+          else if (c === ',' && !inQuotes) { row.push(curVal.trim()); curVal = ''; }
+          else { curVal += c; }
+        }
+        row.push(curVal.trim());
+        return row;
+      });
+
+      const headers = rows[0] || [];
+      const dataRows = rows.slice(1);
+
+      let html = `
+        <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-weight:600;font-size:0.85rem">Previewing ${dataRows.length} of ${lines.length - 1} records (${headers.length} columns)</span>
+          <span class="badge badge-primary" style="font-size:0.75rem">${lines.length - 1} Total Rows</span>
+        </div>
+        <div class="table-responsive" style="width:100%;max-height:55vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+          <table class="file-preview-csv-table">
+            <thead>
+              <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${dataRows.map(r => `<tr>${r.map(c => `<td>${c || '<span style="color:var(--text-muted)">—</span>'}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      bodyEl.innerHTML = html;
+    };
+    reader.readAsText(file);
+  } else if (isText) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'width:100%;max-height:55vh;overflow:auto;padding:16px;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:monospace;font-size:0.82rem;white-space:pre-wrap';
+      pre.textContent = e.target.result;
+      bodyEl.appendChild(pre);
+    };
+    reader.readAsText(file);
+  } else {
+    bodyEl.innerHTML = `
+      <div class="file-preview-doc-box">
+        <div class="file-preview-doc-icon">${getUploadedFileIcon(file.name)}</div>
+        <div style="font-weight:700;font-size:1.1rem;margin-bottom:6px">${file.name}</div>
+        <div class="file-preview-doc-meta">${formatUploadedFileSize(file.size)} · ${file.type || 'Document'}</div>
+        <div style="color:var(--text-muted);font-size:0.82rem;max-width:400px;margin:0 auto 20px">
+          This file format is ready for submission. Click below to inspect or open it locally with your device application.
+        </div>
+        <a href="${fileUrl}" download="${file.name}" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px">
+          💾 Open / Download File
+        </a>
+      </div>
+    `;
+  }
+
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+window.viewSystemFile = viewSystemFile;
+window.openUniversalFilePreview = openUniversalFilePreview;
+window.closeGlobalFileViewModal = closeGlobalFileViewModal;
+window.closeUniversalFilePreview = closeUniversalFilePreview;
 
 // ============================================================
 // Real-Time System Synchronization via Server-Sent Events (SSE)
@@ -983,8 +1181,361 @@ function formatMoneyNumber(num) {
   return parseFloat(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ──────────────────────────────────────────────────────────
+// Controlled Currency Input Component (TZS Formatting & Precision)
+// ──────────────────────────────────────────────────────────
+function initCurrencyInputs() {
+  document.querySelectorAll('input.currency-input, input[data-currency-input]').forEach(attachCurrencyBehavior);
+}
+
+function attachCurrencyBehavior(input) {
+  if (input.dataset.currencyAttached) return;
+  input.dataset.currencyAttached = 'true';
+  input.setAttribute('inputmode', 'numeric');
+  input.setAttribute('autocomplete', 'off');
+
+  // Format initial value if any
+  if (input.value && input.value.trim() !== '') {
+    formatCurrencyElement(input);
+  }
+
+  input.addEventListener('input', function () {
+    formatCurrencyElement(input);
+  });
+
+  input.addEventListener('paste', function (e) {
+    e.preventDefault();
+    const pasteText = (e.clipboardData || window.clipboardData).getData('text');
+    if (!pasteText) return;
+    
+    // Extract digits
+    const digits = pasteText.replace(/[^\d]/g, '');
+    if (!digits) return;
+    
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const currentVal = input.value;
+    const newVal = currentVal.substring(0, start) + digits + currentVal.substring(end);
+    input.value = newVal;
+    formatCurrencyElement(input);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    // Block minus signs, letters, and unwanted special characters
+    if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+      e.preventDefault();
+    }
+  });
+
+  // Ensure form submit cleans or syncs properly
+  const form = input.closest('form');
+  if (form && !form.dataset.currencyFormAttached) {
+    form.dataset.currencyFormAttached = 'true';
+    form.addEventListener('submit', function () {
+      form.querySelectorAll('input.currency-input, input[data-currency-input]').forEach(el => {
+        if (el.value) {
+          el.value = el.value.trim();
+        }
+      });
+    });
+  }
+}
+
+function formatCurrencyElement(input) {
+  const rawVal = input.value;
+  if (!rawVal || rawVal.trim() === '') {
+    input.value = '';
+    return;
+  }
+
+  const cursorPosition = input.selectionStart || 0;
+  
+  // Count how many digits are before the cursor in rawVal
+  const textBeforeCursor = rawVal.substring(0, cursorPosition);
+  const digitsBeforeCursor = (textBeforeCursor.match(/\d/g) || []).length;
+  
+  // Extract all digits (rejects negative sign and non-numeric chars)
+  let cleanDigits = rawVal.replace(/\D/g, '');
+  
+  // Remove leading zeros if multi-digit
+  if (cleanDigits.length > 1 && cleanDigits.startsWith('0')) {
+    cleanDigits = cleanDigits.replace(/^0+/, '');
+    if (cleanDigits === '') cleanDigits = '0';
+  }
+  
+  if (cleanDigits === '') {
+    input.value = '';
+    return;
+  }
+  
+  // Format with thousands separator
+  const formatted = cleanDigits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  input.value = formatted;
+  
+  // Restore cursor position based on digit count
+  let newCursorPos = 0;
+  let digitsCounted = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (/\d/.test(formatted[i])) {
+      digitsCounted++;
+    }
+    if (digitsCounted === digitsBeforeCursor) {
+      newCursorPos = i + 1;
+      break;
+    }
+  }
+  if (digitsBeforeCursor === 0) {
+    newCursorPos = 0;
+  } else if (digitsCounted < digitsBeforeCursor) {
+    newCursorPos = formatted.length;
+  }
+  
+  input.setSelectionRange(newCursorPos, newCursorPos);
+}
+
+window.initCurrencyInputs = initCurrencyInputs;
+window.formatCurrencyElement = formatCurrencyElement;
+
+// ============================================================
+// Universal File Input Management (Preview, Replace, Delete)
+// ============================================================
+function formatUploadedFileSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+  return Math.round(bytes / 1024) + ' KB';
+}
+
+function getUploadedFileIcon(fileName) {
+  const ext = (fileName || '').split('.').pop().toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
+  if (['pdf'].includes(ext)) return '📕';
+  if (['doc', 'docx'].includes(ext)) return '📘';
+  if (['xls', 'xlsx'].includes(ext)) return '📊';
+  if (['csv'].includes(ext)) return '📗';
+  if (['zip', 'rar', 'tar', 'gz', '7z'].includes(ext)) return '🗄️';
+  if (['txt', 'log', 'json', 'xml'].includes(ext)) return '📄';
+  return '📎';
+}
+
+
+
+// Helper to deduplicate File objects by name, size, and timestamp
+function deduplicateFiles(fileList) {
+  if (!fileList || fileList.length <= 1) return Array.from(fileList || []);
+  const seen = new Set();
+  const unique = [];
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
+    const key = `${file.name}_${file.size}_${file.lastModified || 0}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(file);
+    }
+  }
+  return unique;
+}
+
+window.deduplicateFiles = deduplicateFiles;
+
+function renderFileInputPreview(input) {
+  if (!input || !input.parentElement) return;
+
+  // Deduplicate files in input.files using DataTransfer
+  if (input.files && input.files.length > 1) {
+    const uniqueList = deduplicateFiles(input.files);
+    if (uniqueList.length !== input.files.length) {
+      try {
+        const dt = new DataTransfer();
+        uniqueList.forEach(f => dt.items.add(f));
+        input.files = dt.files;
+      } catch (err) {}
+    }
+  }
+
+  // Find or resolve single preview container
+  let previewContainer = null;
+  if (input.dataset.customPreviewContainer) {
+    previewContainer = document.querySelector(input.dataset.customPreviewContainer);
+  }
+  if (!previewContainer) {
+    previewContainer = input.parentElement.querySelector(':scope > .file-selection-preview');
+  }
+
+  if (!input.files || input.files.length === 0) {
+    if (previewContainer) {
+      if (input.dataset.customPreviewContainer) {
+        previewContainer.innerHTML = '';
+      } else {
+        previewContainer.remove();
+      }
+    }
+    return;
+  }
+
+  if (!previewContainer) {
+    previewContainer = document.createElement('div');
+    previewContainer.className = 'file-selection-preview';
+    if (input.nextSibling) {
+      input.parentNode.insertBefore(previewContainer, input.nextSibling);
+    } else {
+      input.parentNode.appendChild(previewContainer);
+    }
+  }
+
+  previewContainer.innerHTML = '';
+  const files = deduplicateFiles(input.files);
+
+  files.forEach((file, index) => {
+    const item = document.createElement('div');
+    item.className = 'file-selection-item';
+
+    const isImage = file.type.startsWith('image/');
+    let mediaHtml = `<span class="file-selection-icon">${getUploadedFileIcon(file.name)}</span>`;
+    if (isImage) {
+      const imgUrl = URL.createObjectURL(file);
+      mediaHtml = `<img src="${imgUrl}" class="file-selection-thumb" alt="Preview" style="cursor:pointer">`;
+    }
+
+    item.innerHTML = `
+      <div class="file-selection-info">
+        ${mediaHtml}
+        <span class="file-selection-name" title="${file.name}">${file.name}</span>
+        <span class="file-selection-size">(${formatUploadedFileSize(file.size)})</span>
+      </div>
+      <div class="file-selection-actions">
+        <span class="badge-uploaded">✓ Uploaded (1)</span>
+        <button type="button" class="btn-file-action btn-file-view" title="View / Inspect file">
+          👁 View
+        </button>
+        <button type="button" class="btn-file-action btn-file-replace" title="Select a different file">
+          ✎ Replace
+        </button>
+        <button type="button" class="btn-file-action btn-file-delete" title="Remove this file">
+          🗑 Delete
+        </button>
+      </div>
+    `;
+
+    // View button
+    const viewBtn = item.querySelector('.btn-file-view');
+    viewBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openUniversalFilePreview(file);
+    });
+
+    const thumbImg = item.querySelector('.file-selection-thumb');
+    if (thumbImg) {
+      thumbImg.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openUniversalFilePreview(file);
+      });
+    }
+
+    // Replace button
+    const replaceBtn = item.querySelector('.btn-file-replace');
+    replaceBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (input.multiple) {
+        const tempPicker = document.createElement('input');
+        tempPicker.type = 'file';
+        tempPicker.accept = input.accept || '*/*';
+        tempPicker.onchange = () => {
+          if (tempPicker.files && tempPicker.files[0]) {
+            try {
+              const dt = new DataTransfer();
+              for (let i = 0; i < input.files.length; i++) {
+                if (i === index) {
+                  dt.items.add(tempPicker.files[0]);
+                } else {
+                  dt.items.add(input.files[i]);
+                }
+              }
+              input.files = dt.files;
+            } catch (err) {}
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        };
+        tempPicker.click();
+      } else {
+        input.click();
+      }
+    });
+
+    // Delete button
+    const deleteBtn = item.querySelector('.btn-file-delete');
+    deleteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (input.multiple && files.length > 1) {
+        try {
+          const dt = new DataTransfer();
+          for (let i = 0; i < input.files.length; i++) {
+            if (i !== index) dt.items.add(input.files[i]);
+          }
+          input.files = dt.files;
+        } catch (err) {
+          input.value = '';
+        }
+      } else {
+        input.value = '';
+      }
+
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    previewContainer.appendChild(item);
+  });
+}
+
+function initGlobalFileInputs(root = document) {
+  root.querySelectorAll('input[type="file"]').forEach((input) => {
+    if (input.dataset.filePreviewInit) return;
+    input.dataset.filePreviewInit = 'true';
+
+    input.addEventListener('change', () => {
+      renderFileInputPreview(input);
+    });
+
+    if (input.files && input.files.length > 0) {
+      renderFileInputPreview(input);
+    }
+  });
+}
+
+window.initGlobalFileInputs = initGlobalFileInputs;
+window.renderFileInputPreview = renderFileInputPreview;
+window.openUniversalFilePreview = openUniversalFilePreview;
+window.closeUniversalFilePreview = closeUniversalFilePreview;
+
+// Auto-observe dynamic DOM for new file inputs
+const fileInputObserver = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    mutation.addedNodes.forEach((node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.tagName === 'INPUT' && node.type === 'file') {
+          initGlobalFileInputs(node.parentElement || document);
+        } else if (node.querySelectorAll) {
+          initGlobalFileInputs(node);
+        }
+      }
+    });
+  });
+});
+fileInputObserver.observe(document.body, { childList: true, subtree: true });
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initRealtimeSync);
+  document.addEventListener('DOMContentLoaded', () => {
+    initRealtimeSync();
+    initCurrencyInputs();
+    initGlobalFileInputs();
+  });
 } else {
   initRealtimeSync();
+  initCurrencyInputs();
+  initGlobalFileInputs();
 }
+

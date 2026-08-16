@@ -10,6 +10,7 @@ define('APP_DIR',  ROOT_DIR . '/app');
 require_once APP_DIR . '/config/database.php';
 require_once APP_DIR . '/helpers/auth.php';
 require_once APP_DIR . '/helpers/format.php';
+require_once APP_DIR . '/helpers/audit.php';
 require_once APP_DIR . '/helpers/sla.php';
 require_once APP_DIR . '/helpers/icons.php';
 require_once APP_DIR . '/helpers/notifications.php';
@@ -83,6 +84,9 @@ $controllerMap = [
     'users'           => 'users',
     'activity_logs'   => 'activity_logs',
     'api_account_info'=> 'api_account_info',
+    'settings'        => 'settings',
+    'ftth_bulk'       => 'ftth_bulk',
+    'price_book'      => 'price_book',
 ];
 
 $controller = $controllerMap[$page] ?? 'dashboard';

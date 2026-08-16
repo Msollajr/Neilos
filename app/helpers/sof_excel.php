@@ -4,7 +4,7 @@
  * Populates a copy of the master Neilos SOF.xlsx template with dynamic order data.
  */
 
-function generateSOFExcel(array $order): string {
+function generateSOFExcel(array $order, ?array $partnerKyc = null): string {
     $templatePath = dirname(__DIR__, 2) . '/Neilos  SOF.xlsx';
     if (!file_exists($templatePath)) {
         throw new RuntimeException("Master template 'Neilos SOF.xlsx' not found.");
@@ -21,6 +21,11 @@ function generateSOFExcel(array $order): string {
     // 1. Create a copy of the master template
     if (!copy($templatePath, $targetPath)) {
         throw new RuntimeException("Failed to copy master SOF template.");
+    }
+
+    // Resolve authoritative partner KYC if not provided
+    if ($partnerKyc === null) {
+        $partnerKyc = getAuthoritativePartnerKyc(getDB(), (int)$order['partner_id']);
     }
 
     // Commercial calculation source of truth
@@ -67,9 +72,10 @@ function generateSOFExcel(array $order): string {
                 };
 
                 // Perform string replacements in existing sharedStrings array
+                $companyName = $partnerKyc['company_name'] ?? ($order['partner_name'] ?? '');
                 $replacements = [
-                    'SOF Number' => 'SOF Number: ' . $order['order_number'],
-                    'Company  Name (KYC)' => 'Company Name: ' . ($order['partner_registered_name'] ?: $order['partner_name']),
+                    'SOF Number'          => 'SOF Number: ' . $order['order_number'],
+                    'Company  Name (KYC)' => 'Company Name: ' . $companyName,
                 ];
 
                 foreach ($sharedXml->si as $si) {

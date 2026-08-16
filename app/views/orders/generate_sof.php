@@ -17,8 +17,8 @@
     
     .excel-header { display: flex; align-items: stretch; justify-content: space-between; margin-bottom: 14px; border: 1px solid #0F4C81; background: #0F4C81; border-radius: 2px; }
     .excel-title-box { flex: 1; padding: 10px 16px; font-size: 12pt; font-weight: 800; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; }
-    .excel-logo-box { background: #ffffff; padding: 6px 16px; display: flex; align-items: center; justify-content: center; border-left: 1px solid #0F4C81; border-radius: 0 1px 1px 0; }
-    .excel-logo-img { height: 40px; width: auto; object-fit: contain; }
+    .excel-logo-box { background: #0F4C81; padding: 6px 16px; display: flex; align-items: center; justify-content: center; border-left: 1px solid rgba(255,255,255,0.25); border-radius: 0 1px 1px 0; }
+    .excel-logo-img { height: 42px; max-width: 180px; width: auto; object-fit: contain; display: block; }
 
     /* Section block wrapper for clean 12px vertical separation between tables */
     .sof-sec-block { margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
@@ -45,7 +45,7 @@
     .box-content p:last-child { margin-bottom: 0; }
 
     .sig-table { width: 100%; border-collapse: collapse; border: 1px solid #0F4C81; border-top: none; background: #fff; border-radius: 0 0 2px 2px; }
-    .sig-cell { width: 33.33%; padding: 8px 10px; vertical-align: top; border-right: 1px solid #cbd5e1; background: #fff; }
+    .sig-cell { width: 50%; padding: 10px 16px; vertical-align: top; border-right: 1px solid #cbd5e1; background: #fff; }
     .sig-cell:last-child { border-right: none; }
     .sig-role { font-size: 8.5pt; font-weight: 700; color: #0F4C81; text-transform: uppercase; border-bottom: 1px solid #0F4C81; padding-bottom: 3px; margin-bottom: 6px; }
     .sig-field { font-size: 8pt; color: #334155; margin-bottom: 3px; }
@@ -94,8 +94,13 @@
         background: #0F4C81 !important;
       }
       .excel-logo-box {
-        background: #ffffff !important;
-        border-left: 1px solid #0F4C81 !important;
+        background: #0F4C81 !important;
+        border-left: 1px solid rgba(255,255,255,0.25) !important;
+      }
+      .excel-logo-img {
+        height: 42px !important;
+        max-width: 180px !important;
+        display: block !important;
       }
       .sof-sec-block {
         margin-bottom: 12px !important;
@@ -147,46 +152,78 @@
 
 <?php
 // Compute base64 logo URI from production assets
-$logoFile = ROOT_DIR . '/public/assets/img/logo.png';
-$logoSrc  = '';
-if (file_exists($logoFile)) {
-    $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoFile));
-} else {
-    $logoSrc = APP_URL . '/assets/img/logo.png';
+// Fetch Neilos company settings
+try {
+    $db = getDB();
+    $neilosInfo = $db->query("SELECT * FROM neilos_company_info WHERE id = 1")->fetch() ?: [];
+} catch (Exception $e) {
+    $neilosInfo = [];
 }
 
-// Authoritative calculation logic
-$hasRevNrc = ($order['revised_nrc'] !== null && $order['revised_nrc'] !== '');
-$stdNrc    = (float)($order['standard_nrc'] ?? $order['base_nrc_usd'] ?? 0);
-$baseNrc   = $hasRevNrc ? (float)$order['revised_nrc'] : $stdNrc;
-$rhNrc     = (float)($order['remote_hands_nrc_usd'] ?? 0);
-$nrcSub    = $baseNrc + $rhNrc;
-$vatNrc    = round($nrcSub * 0.18, 2);
-$totNrc    = round($nrcSub + $vatNrc, 2);
+$sofNumber = !empty($order['sof_number']) ? $order['sof_number'] : generateSofNumber((int)$order['id']);
+// Update sof_number in DB if not set
+if (empty($order['sof_number']) && !empty($order['id'])) {
+    try {
+        $db->prepare("UPDATE orders SET sof_number = ? WHERE id = ? AND (sof_number IS NULL OR sof_number = '')")
+           ->execute([$sofNumber, $order['id']]);
+    } catch (Exception $e) {}
+}
 
-$hasMgmtPrice = ($order['management_approved_price'] !== null && $order['management_approved_price'] !== '');
-$hasRevMrc    = ($order['revised_mrc'] !== null && $order['revised_mrc'] !== '');
-$stdMrc       = (float)($order['standard_mrc'] ?? $order['base_mrc'] ?? 0);
-$mrcVal       = $hasMgmtPrice ? (float)$order['management_approved_price'] : ($hasRevMrc ? (float)$order['revised_mrc'] : $stdMrc);
-$vatMrc       = round($mrcVal * 0.18, 2);
-$totMrc       = round($mrcVal + $vatMrc, 2);
+// Compute base64 logo URI from production assets or uploaded logo
+$rootDir = defined('ROOT_DIR') ? ROOT_DIR : dirname(__DIR__, 2);
+$logoSrc = '';
+if (!empty($neilosInfo['logo_path']) && file_exists($rootDir . '/public/' . $neilosInfo['logo_path'])) {
+    $logoFile = $rootDir . '/public/' . $neilosInfo['logo_path'];
+    $mime = mime_content_type($logoFile) ?: 'image/png';
+    $logoSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logoFile));
+} else {
+    $possibleFiles = [
+        $rootDir . '/public/assets/img/logo.png',
+        $rootDir . '/public/assets/img/logo 1.png',
+        dirname(__DIR__, 2) . '/public/assets/img/logo.png',
+        dirname(__DIR__, 2) . '/public/assets/img/logo 1.png',
+    ];
+    foreach ($possibleFiles as $lf) {
+        if (file_exists($lf)) {
+            $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($lf));
+            break;
+        }
+    }
+    if (!$logoSrc) {
+        $logoSrc = (defined('APP_URL') ? APP_URL : '') . '/assets/img/logo.png';
+    }
+}
 
+// Service request types and checkboxes
 $st = $order['service_type'] ?? '';
-$isL2    = str_contains($st, 'Layer 2');
-$isIPT   = str_contains($st, 'IPT') || str_contains($st, 'DIA') || str_contains($st, 'BIA');
-$isDF    = str_contains($st, 'Dark Fiber');
-$isSDWAN = str_contains($st, 'SDWAN');
-$isWiFi  = str_contains($st, 'Wi-Fi');
-$isMPLS  = str_contains($st, 'MPLS');
+$isL2 = str_contains($st, 'Layer 2') || $st === 'Dedicated Layer 2';
+$isIPT = str_contains($st, 'IPT') || str_contains($st, 'BIA') || str_contains($st, 'Broadband Internet Access') || str_contains($st, 'DIA');
+$isDF = str_contains($st, 'Dark Fiber') || str_contains($st, 'FTTH') || str_contains($st, 'FTTB');
+$isSDWAN = str_contains($st, 'SDWAN') || str_contains($st, 'SD-WAN');
+$isWiFi = str_contains($st, 'Wi-Fi') || str_contains($st, 'WiFi');
+$isMPLS = str_contains($st, 'MPLS');
+$isRH = !empty($order['remote_hands_required']) || ((float)($order['remote_hands_nrc_usd'] ?? 0) > 0) || str_contains($st, 'Remote Hands');
+$isXC = !empty($order['cross_connect_required']);
+$isFeasible = ($order['bsa_technical_result'] ?? '') === 'Technically Feasible' || !in_array($order['status'] ?? '', ['Draft', 'Feasibility Review', 'Technically Not Feasible', 'Cancelled']);
 
-$isRH = $rhNrc > 0 || $st === 'Remote Hands Only' || (float)($order['base_nrc_usd'] ?? 0) == 80000;
-$isXC = !empty($order['nni_location']);
-$isFeasible = $order['status'] !== 'Not Feasible';
+// Compute commercials from authoritative helper
+$comm = getOrderCommercialSummary($order);
+$mrcVal = (float)$comm['mrc_val'];
+$vatMrc = (float)$comm['vat_mrc'];
+$totMrc = (float)$comm['total_mrc'];
+$nrcSub = (float)$comm['nrc_subtotal'];
+$vatNrc = (float)$comm['vat_nrc'];
+$totNrc = (float)$comm['total_nrc'];
+
+// Authoritative Partner KYC for Customer Information
+if (!isset($partnerKyc) || empty($partnerKyc)) {
+    $partnerKyc = getAuthoritativePartnerKyc($db, (int)$order['partner_id']) ?: [];
+}
 ?>
 
 <!-- Print control bar -->
 <div class="top-bar">
-  <span style="font-weight:700">SERVICE ORDER FORM (SOF) — <?= e($order['order_number']) ?></span>
+  <span style="font-weight:700">SERVICE ORDER FORM (SOF) — <?= e($sofNumber) ?> (Order #<?= e($order['order_number']) ?>)</span>
   <div>
     <a href="<?= APP_URL ?>/?page=orders&action=generate_sof&id=<?= $order['id'] ?>&format=excel" class="btn-action btn-excel">📥 Download Excel SOF (.xlsx)</a>
     <button onclick="window.print()" class="btn-action">🖨 Print / Save PDF</button>
@@ -199,7 +236,7 @@ $isFeasible = $order['status'] !== 'Not Feasible';
 
   <!-- Header -->
   <div class="excel-header">
-    <div class="excel-title-box">SERVICE ORDER FORM (SOF) - NEILOS NETWORK LIMITED</div>
+    <div class="excel-title-box">SERVICE ORDER FORM (SOF) - <?= strtoupper(e($neilosInfo['company_name'] ?? 'NEILOS NETWORK LIMITED')) ?></div>
     <div class="excel-logo-box">
       <img src="<?= $logoSrc ?>" alt="Neilos Logo" class="excel-logo-img">
     </div>
@@ -213,27 +250,27 @@ $isFeasible = $order['status'] !== 'Not Feasible';
       <div class="grid-col">
         <div class="col-header">CUSTOMER INFORMATION</div>
         <table class="sof-grid">
-          <tr><td class="lbl">Company Name (KYC)</td><td class="val"><?= e(($order['partner_registered_name'] ?? '') ?: ($order['partner_name'] ?? '')) ?></td></tr>
-          <tr><td class="lbl">Technical contact Name</td><td class="val"><?= e(($order['auth_signatory_name'] ?? '') ?: '—') ?></td></tr>
-          <tr><td class="lbl">Phone</td><td class="val"><?= e(($order['customer_contact_phone'] ?? '') ?: '—') ?></td></tr>
-          <tr><td class="lbl">Email</td><td class="val"><?= e(($order['auth_signatory_email'] ?? '') ?: '—') ?></td></tr>
-          <tr><td class="lbl">Billing contact Name</td><td class="val"><?= e(($order['finance_contact_name'] ?? '') ?: '—') ?></td></tr>
-          <tr><td class="lbl">Phone</td><td class="val"><?= e(($order['customer_contact_phone'] ?? '') ?: '—') ?></td></tr>
-          <tr><td class="lbl">Email</td><td class="val"><?= e(($order['billing_email'] ?? '') ?: '—') ?></td></tr>
+          <tr><td class="lbl">Company Name (KYC)</td><td class="val"><?= e($partnerKyc['company_name'] ?? '—') ?></td></tr>
+          <tr><td class="lbl">Technical contact Name</td><td class="val"><?= e($partnerKyc['tech_contact_name'] ?? '—') ?></td></tr>
+          <tr><td class="lbl">Phone</td><td class="val"><?= e($partnerKyc['tech_contact_phone'] ?? '—') ?></td></tr>
+          <tr><td class="lbl">Email</td><td class="val"><?= e($partnerKyc['tech_contact_email'] ?? '—') ?></td></tr>
+          <tr><td class="lbl">Billing contact Name</td><td class="val"><?= e($partnerKyc['billing_contact_name'] ?? '—') ?></td></tr>
+          <tr><td class="lbl">Phone</td><td class="val"><?= e($partnerKyc['billing_contact_phone'] ?? '—') ?></td></tr>
+          <tr><td class="lbl">Email</td><td class="val"><?= e($partnerKyc['billing_contact_email'] ?? '—') ?></td></tr>
         </table>
       </div>
 
       <!-- Neilos Network Limited Information -->
       <div class="grid-col">
-        <div class="col-header">NEILOS NETWORK LIMITED INFORMATION</div>
+        <div class="col-header"><?= strtoupper(e($neilosInfo['company_name'] ?? 'NEILOS NETWORK LIMITED')) ?> INFORMATION</div>
         <table class="sof-grid">
-          <tr><td class="lbl">SOF Number</td><td class="val"><?= e($order['order_number']) ?></td></tr>
-          <tr><td class="lbl">Technical contact Name</td><td class="val">Neilos Engineering Support</td></tr>
-          <tr><td class="lbl">Phone</td><td class="val">+255 700 000 000</td></tr>
-          <tr><td class="lbl">Email</td><td class="val">support@neilosnetwork.co.tz</td></tr>
-          <tr><td class="lbl">Billing contact Name</td><td class="val">Neilos Finance Team</td></tr>
-          <tr><td class="lbl">Phone</td><td class="val">+255 700 000 000</td></tr>
-          <tr><td class="lbl">Email</td><td class="val">billing@neilosnetwork.co.tz</td></tr>
+          <tr><td class="lbl">SOF Number</td><td class="val" style="font-weight:700;color:#0F4C81"><?= e($sofNumber) ?></td></tr>
+          <tr><td class="lbl">Technical contact Name</td><td class="val"><?= e($neilosInfo['tech_contact'] ?? 'Neilos Engineering Support') ?></td></tr>
+          <tr><td class="lbl">Phone</td><td class="val"><?= e($neilosInfo['phone'] ?? '+255 700 000 000') ?></td></tr>
+          <tr><td class="lbl">Email</td><td class="val"><?= e($neilosInfo['tech_email'] ?? 'noc@neilosnetwork.co.tz') ?></td></tr>
+          <tr><td class="lbl">Billing contact Name</td><td class="val"><?= e($neilosInfo['finance_contact'] ?? 'Neilos Finance Team') ?></td></tr>
+          <tr><td class="lbl">Phone</td><td class="val"><?= e($neilosInfo['phone'] ?? '+255 700 000 000') ?></td></tr>
+          <tr><td class="lbl">Email</td><td class="val"><?= e($neilosInfo['finance_email'] ?? 'billing@neilosnetwork.co.tz') ?></td></tr>
         </table>
       </div>
     </div>
@@ -322,7 +359,6 @@ $isFeasible = $order['status'] !== 'Not Feasible';
       <div class="grid-col">
         <table class="sof-grid">
           <tr><td class="lbl">Currency of Payment</td><td class="val">TZS</td></tr>
-          <tr><td class="lbl">USD to TZS RATE</td><td class="val">2,670</td></tr>
           <tr><td class="lbl">Set-Up Charges ( NRC )</td><td class="val">TZS <?= money($nrcSub) ?></td></tr>
           <tr><td class="lbl">VAT 18%</td><td class="val">TZS <?= money($vatNrc) ?></td></tr>
           <tr style="background:#f1f5f9"><td class="lbl" style="font-weight:700;color:#0F4C81">Total Once - Off</td><td class="val" style="font-weight:700;color:#0F4C81">TZS <?= money($totNrc) ?></td></tr>
@@ -357,34 +393,24 @@ $isFeasible = $order['status'] !== 'Not Feasible';
     <div class="sec-banner">AUTHORISATION &amp; SIGNATURES</div>
     <table class="sig-table">
       <tr>
-        <!-- Prepared By -->
-        <td class="sig-cell">
-          <div class="sig-role">Prepared By</div>
-          <div class="sig-field"><strong>Name:</strong> <?= e($order['assigned_kam_name'] ?: 'Key Account Manager') ?></div>
-          <div class="sig-field"><strong>Title:</strong> Key Account Manager</div>
-          <div class="sig-line"></div>
-          <div class="sig-sub">Signature &amp; Date</div>
-          <div class="sig-sub" style="margin-top:4px">Stamp: __________________</div>
-        </td>
-
         <!-- Purchaser (Customer) -->
         <td class="sig-cell">
           <div class="sig-role">Purchaser (Customer)</div>
-          <div class="sig-field"><strong>Name:</strong> <?= e(($order['auth_signatory_name'] ?? '') ?: (($order['partner_registered_name'] ?? '') ?: ($order['partner_name'] ?? ''))) ?></div>
-          <div class="sig-field"><strong>Title:</strong> Authorized Signatory</div>
+          <div class="sig-field"><strong>Name:</strong> ___________________________________</div>
+          <div class="sig-field"><strong>Title:</strong> ___________________________________</div>
           <div class="sig-line"></div>
           <div class="sig-sub">Signature &amp; Date</div>
-          <div class="sig-sub" style="margin-top:4px">Stamp: __________________</div>
+          <div class="sig-sub" style="margin-top:6px">Stamp: ___________________________</div>
         </td>
 
         <!-- For Neilos Network Limited -->
         <td class="sig-cell">
-          <div class="sig-role">For Neilos Network Limited</div>
-          <div class="sig-field"><strong>Name:</strong> Director / Authorized Officer</div>
-          <div class="sig-field"><strong>Title:</strong> Director / Authorized Officer</div>
+          <div class="sig-role">For <?= strtoupper(e($neilosInfo['company_name'] ?? 'NEILOS NETWORK LIMITED')) ?></div>
+          <div class="sig-field"><strong>Name:</strong> <?= e(!empty($neilosInfo['authorized_signatory']) ? $neilosInfo['authorized_signatory'] : 'Director / Authorized Officer') ?></div>
+          <div class="sig-field"><strong>Title:</strong> <?= e(!empty($neilosInfo['signatory_title']) ? $neilosInfo['signatory_title'] : 'Director / Authorized Officer') ?></div>
           <div class="sig-line"></div>
           <div class="sig-sub">Signature &amp; Date</div>
-          <div class="sig-sub" style="margin-top:4px">Stamp: __________________</div>
+          <div class="sig-sub" style="margin-top:6px">Stamp: ___________________________</div>
         </td>
       </tr>
     </table>

@@ -40,6 +40,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         exit;
     }
 
+    $custName  = trim($_POST['customer_name'] ?? '');
+    $contName  = trim($_POST['customer_contact_name'] ?? '');
+    $contPhone = trim($_POST['customer_contact_phone'] ?? '');
+    $contEmail = trim($_POST['customer_contact_email'] ?? '');
+
+    if (!$custName) {
+        setFlash('danger', 'Customer name is required.');
+        header('Location: ' . APP_URL . '/?page=new_order');
+        exit;
+    }
+
+    if (!$contName || !$contPhone || !$contEmail) {
+        setFlash('danger', 'Customer contact name, phone number, and email address are all mandatory.');
+        header('Location: ' . APP_URL . '/?page=new_order');
+        exit;
+    }
+
+    if (!filter_var($contEmail, FILTER_VALIDATE_EMAIL)) {
+        setFlash('danger', 'Please provide a valid customer contact email address.');
+        header('Location: ' . APP_URL . '/?page=new_order');
+        exit;
+    }
+
     // Resolve KAM: Partner Users automatically use their Partner's assigned KAM
     $pKamStmt = $db->prepare("SELECT kam_id, assigned_kam_name FROM partners WHERE id = ?");
     $pKamStmt->execute([$partnerId]);
@@ -112,24 +135,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
        ->execute([$orderId, 'Feasibility Review', 'Feasibility request submitted by partner.', $user['id']]);
 
-    // Handle file uploads
+    // Handle file uploads (with backend deduplication)
     if (!empty($_FILES['documents']) && is_array($_FILES['documents']['name'])) {
         $filesCount = count($_FILES['documents']['name']);
+        $processedFiles = [];
         for ($i = 0; $i < $filesCount; $i++) {
             $fname = $_FILES['documents']['name'][$i] ?? '';
             $err   = $_FILES['documents']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
+            $fsize = $_FILES['documents']['size'][$i] ?? 0;
             if (!$fname || $err === UPLOAD_ERR_NO_FILE) continue;
+
+            $fileDedupeKey = $fname . '_' . $fsize;
+            if (isset($processedFiles[$fileDedupeKey])) continue;
+            $processedFiles[$fileDedupeKey] = true;
 
             $file = [
                 'name'     => $fname,
                 'tmp_name' => $_FILES['documents']['tmp_name'][$i],
                 'error'    => $err,
-                'size'     => $_FILES['documents']['size'][$i]
+                'size'     => $fsize
             ];
             try {
                 $up = uploadFile($file, 'orders/' . $orderId);
-                $db->prepare("INSERT INTO order_documents (order_id, document_type, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?)")
-                   ->execute([$orderId, 'Supporting Document', $up['name'], $up['path'], $up['size'], $user['id']]);
+                $db->prepare("INSERT INTO order_documents (order_id, doc_type, document_type, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?)")
+                   ->execute([$orderId, 'other', 'Supporting Document', $up['name'], $up['path'], $up['size'], $user['id']]);
             } catch (Exception $e) {
                 setFlash('warning', 'Document upload note: ' . e($e->getMessage()));
             }
@@ -150,8 +179,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'bsa_feasible') {
     verifyCsrf();
     if (!hasRole('BSA') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    $revisedNrc = $_POST['revised_nrc'] !== '' ? (float)$_POST['revised_nrc'] : null;
+    $orderId          = (int)($_POST['order_id'] ?? 0);
+    $revisedNrcRaw    = trim($_POST['revised_nrc'] ?? '');
     $nrcJustification = trim($_POST['nrc_justification'] ?? '');
     $technicalRemarks = trim($_POST['technical_remarks'] ?? '');
 
@@ -161,11 +190,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'bsa_feasible') {
     $o = $orderStmt->fetch();
     if (!$o) { setFlash('danger','Order not found.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
-    $standardNrc = (float)($o['standard_nrc'] ?? $o['base_nrc_usd'] ?? 60.00);
+    // Parse TZS input — allow zero for Remote Hands-only NRC
+    $revisedNrc = null;
+    if ($revisedNrcRaw !== '') {
+        try {
+            $revisedNrc = parseTZSInput($revisedNrcRaw, true, true, MAX_NRC_AMOUNT, 'Revised NRC');
+        } catch (RuntimeException $ex) {
+            setFlash('danger', $ex->getMessage());
+            header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+        }
+    }
 
-    // Spec rule 7.2: If NRC increases, justification is mandatory
-    if ($revisedNrc !== null && $revisedNrc > $standardNrc && !$nrcJustification) {
-        setFlash('danger','NRC justification is mandatory when revised NRC is higher than standard NRC.');
+    $standardNrc = (float)($o['standard_nrc'] ?? $o['base_nrc_usd'] ?? 0);
+
+    // Justification mandatory when NRC differs from standard
+    if ($revisedNrc !== null && $revisedNrc != $standardNrc && !$nrcJustification) {
+        setFlash('danger','NRC justification is mandatory when revising the standard NRC.');
         header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
     }
 
@@ -228,7 +268,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'bsa_feasible') {
     ]);
 
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, 'Await Commercial Approval', 'BSA marked technically feasible — pending partner commercial acceptance.', $user['id']]);
+       ->execute([$orderId, 'Await Commercial Approval', 'BSA marked technically feasible — pending KAM commercial approval.', $user['id']]);
+
+    // Audit price change
+    if ($revisedNrc !== null) {
+        recordPriceChange($orderId, 'revised_nrc', $standardNrc, $revisedNrc, $user['id'], 'Feasibility Review', $nrcJustification);
+    }
 
     evaluateAndSyncOrderStatus($orderId, 'bsa_feasible');
 
@@ -268,165 +313,245 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'bsa_not_feasible') {
 }
 
 // ------------------------------------------------------------------
-// POST: KAM — Approve Commercial (standard or unchanged MRC)
+// POST: KAM — Commercial approval (standard, exception, or escalate)
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'kam_approve') {
     verifyCsrf();
     if (!hasRole('KAM') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    $revisedMrc = $_POST['revised_mrc'] !== '' ? (float)$_POST['revised_mrc'] : null;
-    $mrcJustification = trim($_POST['mrc_justification'] ?? '');
+    $orderId            = (int)($_POST['order_id'] ?? 0);
+    $proposedNrcRaw     = trim($_POST['kam_proposed_nrc'] ?? '');
+    $proposedMrcRaw     = trim($_POST['kam_proposed_mrc'] ?? '');
+    $kamJustification   = trim($_POST['kam_commercial_justification'] ?? '');
+    $kamRemarks         = trim($_POST['kam_remarks'] ?? '');
 
     $orderStmt = $db->prepare("SELECT * FROM orders WHERE id = ?");
     $orderStmt->execute([$orderId]);
     $o = $orderStmt->fetch();
     if (!$o) { setFlash('danger','Order not found.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
-    // If revised MRC is below standard — auto-route to Management Approval
-    $standardMrc = (float)($o['standard_mrc'] ?? $o['base_mrc']);
-    if ($revisedMrc !== null && $revisedMrc < $standardMrc) {
-        if (!$mrcJustification) {
-            setFlash('danger','Commercial discount justification is mandatory when offering pricing below standard.');
-            header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+    // Ensure all required KAM exception columns exist
+    $cols = array_keys($o);
+    if (!in_array('kam_remarks', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN kam_remarks TEXT NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('kam_proposed_nrc', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN kam_proposed_nrc DECIMAL(14,2) NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('kam_proposed_mrc', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN kam_proposed_mrc DECIMAL(14,2) NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('kam_commercial_justification', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN kam_commercial_justification TEXT NULL"); } catch (Throwable $e) {}
+    }
+
+
+    $standardNrc = (float)($o['standard_nrc'] ?? $o['base_nrc_usd'] ?? 0);
+    $standardMrc = (float)($o['standard_mrc'] ?? $o['base_mrc'] ?? 0);
+    $bsaRevNrc   = ($o['revised_nrc'] !== null && $o['revised_nrc'] !== '') ? (float)$o['revised_nrc'] : $standardNrc;
+
+    // Parse KAM proposed values (optional — blank means use existing/standard)
+    $proposedNrc = null;
+    $proposedMrc = null;
+    if ($proposedNrcRaw !== '') {
+        try {
+            $proposedNrc = parseTZSInput($proposedNrcRaw, true, true, MAX_NRC_AMOUNT, 'Proposed NRC');
+        } catch (RuntimeException $ex) {
+            setFlash('danger', $ex->getMessage()); header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
         }
+    }
+    if ($proposedMrcRaw !== '') {
+        try {
+            $proposedMrc = parseTZSInput($proposedMrcRaw, true, true, MAX_MRC_AMOUNT, 'Proposed MRC');
+        } catch (RuntimeException $ex) {
+            setFlash('danger', $ex->getMessage()); header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+        }
+    }
 
-        $effectiveMrc = ($revisedMrc !== null && $revisedMrc !== '') ? (float)$revisedMrc : $standardMrc;
-        $vatMrc       = round($effectiveMrc * 0.18, 2);
-        $totMrc       = round($effectiveMrc + $vatMrc, 2);
+    // Exception = any price that deviates from the BSA-set or standard value
+    $nrcException = ($proposedNrc !== null && $proposedNrc != $bsaRevNrc);
+    $mrcException = ($proposedMrc !== null && $proposedMrc < $standardMrc);
+    $isException  = $nrcException || $mrcException;
 
+    if ($isException && !$kamJustification) {
+        setFlash('danger','Commercial justification is mandatory when proposing a pricing exception.');
+        header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+    }
+
+    if ($isException) {
+        // Store KAM exception proposals and route to Management
         $db->prepare("UPDATE orders SET
-            revised_mrc = ?, mrc_justification = ?,
-            vat_on_mrc = ?, total_mrc_incl_vat = ?,
+            kam_proposed_nrc = ?, kam_proposed_mrc = ?,
+            kam_commercial_justification = ?, kam_remarks = ?,
             kam_approved_by = ?, kam_approved_at = NOW(),
             status = 'Management Approval', updated_at = NOW()
-            WHERE id = ?")->execute([$revisedMrc, $mrcJustification, $vatMrc, $totMrc, $user['id'], $orderId]);
+            WHERE id = ?")->execute([$proposedNrc, $proposedMrc, $kamJustification, $kamRemarks, $user['id'], $orderId]);
 
         $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-           ->execute([$orderId, 'Management Approval', "KAM provided MRC discount ($revisedMrc vs standard $standardMrc) — automatically routed to Management Approval.", $user['id']]);
+           ->execute([$orderId, 'Management Approval', "KAM submitted pricing exception (NRC: " . ($proposedNrc ? formatTZS($proposedNrc) : '—') . ", MRC: " . ($proposedMrc ? formatTZS($proposedMrc) : '—') . ") — routed to Management Approval.", $user['id']]);
+
+        // Audit price changes
+        if ($nrcException) recordPriceChange($orderId, 'kam_proposed_nrc', $bsaRevNrc, $proposedNrc, $user['id'], 'Await Commercial Approval', $kamJustification);
+        if ($mrcException) recordPriceChange($orderId, 'kam_proposed_mrc', $standardMrc, $proposedMrc, $user['id'], 'Await Commercial Approval', $kamJustification);
 
         queueOrderNotification($orderId, 'KAM Requires Further Approval');
-        auditLog("KAM escalated discounted MRC to Management for order #$orderId", 'orders', $orderId);
-        setFlash('warning', 'MRC pricing is below standard price book — order routed to Management Approval queue.');
+        auditLog("KAM escalated pricing exception to Management for order #$orderId", 'orders', $orderId);
+        setFlash('warning', 'Pricing exception submitted — order routed to Management Approval queue.');
         header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
         exit;
     }
 
-    if ($revisedMrc !== null && $revisedMrc != $standardMrc && !$mrcJustification) {
-        setFlash('danger','Commercial justification is mandatory when MRC is changed.');
-        header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
-    }
-
-    $effectiveMrc = ($revisedMrc !== null && $revisedMrc !== '') ? (float)$revisedMrc : $standardMrc;
+    // Standard approval — no exception. Use BSA NRC, standard MRC (or KAM proposed MRC if above standard)
+    $effectiveMrc = ($proposedMrc !== null && $proposedMrc >= $standardMrc) ? $proposedMrc : $standardMrc;
     $vatMrc       = round($effectiveMrc * 0.18, 2);
     $totMrc       = round($effectiveMrc + $vatMrc, 2);
 
     $db->prepare("UPDATE orders SET
         revised_mrc = ?, mrc_justification = ?,
-        vat_on_mrc = ?, total_mrc_incl_vat = ?,
+        kam_remarks = ?,
         kam_approved_by = ?, kam_approved_at = NOW(),
         status = 'Pending SOF', updated_at = NOW()
-        WHERE id = ?")->execute([$revisedMrc, $mrcJustification, $vatMrc, $totMrc, $user['id'], $orderId]);
+        WHERE id = ?")->execute([$effectiveMrc != $standardMrc ? $effectiveMrc : null, $kamJustification ?: null, $kamRemarks, $user['id'], $orderId]);
 
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, 'Pending SOF', 'KAM: Commercial approved. Partner must generate and upload signed SOF.', $user['id']]);
+       ->execute([$orderId, 'Pending SOF', 'KAM: Commercial approved at standard pricing. Partner notified for SOF signature.', $user['id']]);
 
     queueOrderNotification($orderId, 'Feasibility Approved');
-    auditLog("KAM approved commercial for order #$orderId", 'orders', $orderId);
-    setFlash('success', 'Commercial approved. Partner notified to sign and upload SOF.');
+    auditLog("KAM approved standard commercial for order #$orderId", 'orders', $orderId);
+    setFlash('success', 'Commercial approved at standard pricing. Partner notified to sign and upload SOF.');
     header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
     exit;
 }
 
+// Removed: kam_escalate (merged into kam_approve)
+
 // ------------------------------------------------------------------
-// POST: KAM — Requires Further (Management) Approval
+// POST: Management — 4-option decision on pricing exception
 // ------------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'kam_escalate') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'management_decide') {
     verifyCsrf();
-    if (!hasRole('KAM') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+    if (!hasRole('Management') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    $revisedMrc = $_POST['revised_mrc'] !== '' ? (float)$_POST['revised_mrc'] : null;
-    $mrcJustification = trim($_POST['mrc_justification'] ?? '');
+    $orderId       = (int)($_POST['order_id'] ?? 0);
+    $decision      = trim($_POST['management_decision'] ?? '');
+    $remarks       = trim($_POST['management_remarks'] ?? '');
+    $returnRemarks = trim($_POST['management_return_remarks'] ?? '');
 
-    if (!$mrcJustification) {
-        setFlash('danger','Justification required when escalating to Management.');
+    $allowedDecisions = ['Approve as Requested','Approve with Revised Price','Keep Standard Price','Return to KAM'];
+    if (!in_array($decision, $allowedDecisions)) {
+        setFlash('danger','Invalid decision. Please choose one of the available options.');
         header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
     }
 
+    $orderStmt = $db->prepare("SELECT * FROM orders WHERE id = ?");
+    $orderStmt->execute([$orderId]);
+    $o = $orderStmt->fetch();
+    if (!$o) { setFlash('danger','Order not found.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+
+    $cols = array_keys($o);
+    if (!in_array('management_decision', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN management_decision VARCHAR(100) NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('management_remarks', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN management_remarks TEXT NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('management_return_remarks', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN management_return_remarks TEXT NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('management_final_nrc', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN management_final_nrc DECIMAL(14,2) NULL"); } catch (Throwable $e) {}
+    }
+    if (!in_array('management_final_mrc', $cols)) {
+        try { $db->exec("ALTER TABLE orders ADD COLUMN management_final_mrc DECIMAL(14,2) NULL"); } catch (Throwable $e) {}
+    }
+
+
+    $standardNrc  = (float)($o['standard_nrc'] ?? $o['base_nrc_usd'] ?? 0);
+    $standardMrc  = (float)($o['standard_mrc'] ?? $o['base_mrc'] ?? 0);
+    $kamNrc       = $o['kam_proposed_nrc'] !== null ? (float)$o['kam_proposed_nrc'] : null;
+    $kamMrc       = $o['kam_proposed_mrc'] !== null ? (float)$o['kam_proposed_mrc'] : null;
+    $bsaRevNrc    = ($o['revised_nrc'] !== null) ? (float)$o['revised_nrc'] : $standardNrc;
+
+    if ($decision === 'Return to KAM') {
+        if (!$returnRemarks) {
+            setFlash('danger','Return remarks are mandatory when returning to Account Manager.');
+            header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+        }
+        $db->prepare("UPDATE orders SET
+            management_decision = ?, management_return_remarks = ?,
+            management_approved_by = ?, management_approved_at = NOW(),
+            kam_proposed_nrc = NULL, kam_proposed_mrc = NULL, kam_commercial_justification = NULL,
+            status = 'Await Commercial Approval', updated_at = NOW()
+            WHERE id = ?")->execute([$decision, $returnRemarks, $user['id'], $orderId]);
+
+        $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
+           ->execute([$orderId, 'Await Commercial Approval', "Management returned to KAM for revision. Remarks: $returnRemarks", $user['id']]);
+
+        queueOrderNotification($orderId, 'Management Returned to KAM');
+        auditLog("Management returned order #$orderId to KAM: $returnRemarks", 'orders', $orderId);
+        setFlash('warning', 'Order returned to Account Manager for revision.');
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+        exit;
+    }
+
+    // Determine final NRC and MRC based on decision
+    if ($decision === 'Approve as Requested') {
+        $finalNrc = $kamNrc ?? $bsaRevNrc;
+        $finalMrc = $kamMrc ?? $standardMrc;
+        $note     = 'Management approved pricing as requested by KAM.';
+    } elseif ($decision === 'Approve with Revised Price') {
+        // Read management's own revised values (both NRC and MRC required when setting revised price)
+        try {
+            $finalNrc = parseTZSInput(trim($_POST['management_final_nrc'] ?? ''), false, true, MAX_NRC_AMOUNT, 'Management Final NRC');
+            $finalMrc = parseTZSInput(trim($_POST['management_final_mrc'] ?? ''), false, true, MAX_MRC_AMOUNT, 'Management Final MRC');
+        } catch (RuntimeException $ex) {
+            setFlash('danger', $ex->getMessage());
+            header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+        }
+        $note = 'Management approved with revised pricing: NRC ' . formatTZS($finalNrc) . ', MRC ' . formatTZS($finalMrc) . '.';
+    } else { // Keep Standard Price
+        $finalNrc = $bsaRevNrc; // BSA-set NRC
+        $finalMrc = $standardMrc;
+        $note     = 'Management kept standard pricing. KAM exception not approved.';
+    }
+
+    $vatMrc = round($finalMrc * 0.18, 2);
+    $totMrc = round($finalMrc + $vatMrc, 2);
+
     $db->prepare("UPDATE orders SET
-        revised_mrc = ?, mrc_justification = ?,
-        kam_approved_by = ?, kam_approved_at = NOW(),
-        status = 'Management Approval', updated_at = NOW()
-        WHERE id = ?")->execute([$revisedMrc, $mrcJustification, $user['id'], $orderId]);
-
-    $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, 'Management Approval', "KAM: Escalated for exception approval. Reason: $mrcJustification", $user['id']]);
-
-    queueOrderNotification($orderId, 'KAM Requires Further Approval');
-    auditLog("KAM escalated to Management for order #$orderId", 'orders', $orderId);
-    setFlash('success', 'Order escalated to Management Approval queue.');
-    header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
-    exit;
-}
-
-// ------------------------------------------------------------------
-// POST: Management — Approve as requested
-// ------------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'management_approve') {
-    verifyCsrf();
-    if (!hasRole('Management') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
-
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    $approvedPrice = $_POST['management_approved_price'] !== '' ? (float)$_POST['management_approved_price'] : null;
-    $remarks = trim($_POST['management_remarks'] ?? '');
-    $remarksVisible = (int)($_POST['management_remarks_visible'] ?? 0);
-
-    $db->prepare("UPDATE orders SET
-        management_approved_price = ?, management_remarks = ?,
-        management_remarks_visible = ?,
+        management_final_nrc = ?, management_final_mrc = ?,
+        management_approved_price = ?, management_decision = ?,
+        management_remarks = ?, management_remarks_visible = 0,
         management_approved_by = ?, management_approved_at = NOW(),
+        revised_nrc = ?, vat_on_mrc = ?, total_mrc_incl_vat = ?,
         status = 'Pending SOF', updated_at = NOW()
-        WHERE id = ?")->execute([$approvedPrice, $remarks, $remarksVisible, $user['id'], $orderId]);
+        WHERE id = ?")->execute([
+        $finalNrc, $finalMrc,
+        $finalMrc, $decision,
+        $remarks, $user['id'],
+        $finalNrc !== $standardNrc ? $finalNrc : null,
+        $vatMrc, $totMrc, $orderId
+    ]);
 
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, 'Pending SOF', 'Management approved price — routed to Partner for SOF signature.', $user['id']]);
+       ->execute([$orderId, 'Pending SOF', $note, $user['id']]);
 
-    evaluateAndSyncOrderStatus($orderId, 'set_management_price');
+    recordPriceChange($orderId, 'management_final_nrc', $kamNrc ?? $bsaRevNrc, $finalNrc, $user['id'], 'Management Approval', $remarks);
+    recordPriceChange($orderId, 'management_final_mrc', $kamMrc ?? $standardMrc, $finalMrc, $user['id'], 'Management Approval', $remarks);
 
     queueOrderNotification($orderId, 'Management Pricing Approved');
-    auditLog("Management approved exception for order #$orderId", 'orders', $orderId);
-    setFlash('success', 'Management approval granted. Partner notified to sign SOF.');
+    auditLog("Management decision '$decision' for order #$orderId", 'orders', $orderId);
+    setFlash('success', 'Decision recorded: ' . $decision . '. Partner notified to sign SOF.');
     header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
     exit;
 }
 
-// ------------------------------------------------------------------
-// POST: Management — Reject exception (revert to standard price)
-// ------------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'management_reject') {
-    verifyCsrf();
-    if (!hasRole('Management') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
-
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    $remarks = trim($_POST['management_remarks'] ?? '');
-    $remarksVisible = (int)($_POST['management_remarks_visible'] ?? 0);
-
-    // Revert to standard MRC
-    $db->prepare("UPDATE orders SET
-        revised_mrc = NULL, management_remarks = ?,
-        management_remarks_visible = ?,
-        management_approved_by = ?, management_approved_at = NOW(),
-        status = 'Pending SOF', updated_at = NOW()
-        WHERE id = ?")->execute([$remarks, $remarksVisible, $user['id'], $orderId]);
-
-    $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, 'Pending SOF', 'Management: Exception rejected. Standard price applies. Proceeding to SOF.', $user['id']]);
-
-    queueOrderNotification($orderId, 'Feasibility Approved');
-    auditLog("Management rejected exception, reverted to standard for order #$orderId", 'orders', $orderId);
-    setFlash('success', 'Exception rejected. Standard price applies. Partner notified to sign SOF.');
-    header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+// Legacy alias — management_approve now maps to management_decide internally
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($action === 'management_approve' || $action === 'management_reject')) {
+    $_POST['management_decision'] = ($action === 'management_approve') ? 'Approve as Requested' : 'Keep Standard Price';
+    $_GET['action'] = $action = 'management_decide';
+    // Fall through handled below — redirect
+    header('Location: ' . APP_URL . '/?page=orders&action=management_decide&order_id=' . (int)($_POST['order_id'] ?? 0));
     exit;
 }
 
@@ -436,24 +561,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'management_reject') {
 if ($action === 'generate_sof') {
     $orderId = (int)($_GET['id'] ?? 0);
     $pw = partnerWhere('o');
-    $stmt = $db->prepare("SELECT o.*, p.name as partner_name,
-        pka.registered_name, pka.address as partner_address,
-        pka.auth_signatory_name, pka.auth_signatory_email, pka.auth_signatory_mobile,
-        pka.finance_contact_name, pka.finance_contact_email, pka.billing_email,
-        pka.tech_contact_name, pka.tech_contact_email
+    $stmt = $db->prepare("SELECT o.*, p.name as partner_name
         FROM orders o
         JOIN partners p ON o.partner_id = p.id
-        LEFT JOIN partner_kyc_applications pka ON pka.partner_id = o.partner_id
         WHERE o.id = ? AND {$pw['condition']}");
     $stmt->execute(array_merge([$orderId], $pw['params']));
     $order = $stmt->fetch();
-    if (!$order) { http_response_code(404); echo '<p>Order not found.</p>'; exit; }
+    if (!$order) { http_response_code(404); echo '<p style="padding:40px">Order not found.</p>'; exit; }
 
-    // Record that SOF was generated
+    $partnerId = (int)$order['partner_id'];
+    $partnerKyc = getAuthoritativePartnerKyc($db, $partnerId);
+
+    // Validate KYC completeness before SOF generation
+    if (!$partnerKyc || !$partnerKyc['is_complete']) {
+        $missingList = !empty($partnerKyc['missing_fields']) ? implode(', ', $partnerKyc['missing_fields']) : 'KYC application not found';
+        setFlash('danger', "Partner KYC is incomplete (Missing: $missingList). Please complete the required customer and contact information in Partner KYC before generating the SOF.");
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+        exit;
+    }
+
+    // Record that SOF was generated and which KYC record was used
+    $kycId = $partnerKyc['id'];
     $db->prepare("UPDATE orders SET sof_generated_at = NOW() WHERE id = ? AND sof_generated_at IS NULL")
        ->execute([$orderId]);
 
-    auditLog("SOF generated for order #$orderId", 'orders', $orderId);
+    auditLog("SOF generated for order #$orderId (Partner: {$partnerKyc['company_name']}, KYC Application ID: " . ($kycId ?: 'N/A') . ")", 'orders', $orderId);
+
+    if (isset($_GET['format']) && $_GET['format'] === 'excel') {
+        require_once APP_DIR . '/helpers/sof_excel.php';
+        try {
+            $excelFile = generateSOFExcel($order, $partnerKyc);
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . basename($excelFile) . '"');
+            header('Content-Length: ' . filesize($excelFile));
+            readfile($excelFile);
+            exit;
+        } catch (Exception $e) {
+            setFlash('danger', 'Excel generation note: ' . e($e->getMessage()));
+        }
+    }
 
     $pageTitle = 'Service Order Form — ' . $order['order_number'];
     include APP_DIR . '/views/orders/generate_sof.php';
@@ -488,8 +634,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_signed_sof') {
             status = 'SOF Review', updated_at = NOW()
             WHERE id = ?")->execute([$up['path'], $up['name'], $orderId]);
 
-        $db->prepare("INSERT INTO order_documents (order_id, document_type, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?)")
-           ->execute([$orderId, 'Signed SOF', $up['name'], $up['path'], $up['size'], $user['id']]);
+        $db->prepare("INSERT INTO order_documents (order_id, doc_type, document_type, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?)")
+           ->execute([$orderId, 'sof', 'Signed SOF', $up['name'], $up['path'], $up['size'], $user['id']]);
 
         $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
            ->execute([$orderId, 'SOF Review', 'Partner uploaded signed SOF. Awaiting Neilos countersignature.', $user['id']]);
@@ -506,51 +652,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_signed_sof') {
 }
 
 // ------------------------------------------------------------------
-// POST: Partner — Return to Feasibility from Pending SOF
+// POST: Partner — Not Satisfied (return from Pending SOF to KAM)
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'return_to_feasibility') {
     verifyCsrf();
     if (!isPartnerUser() && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    $returnAction = $_POST['return_action'] ?? '';  // back_to_survey | back_to_pricing | start_project
-    $returnReason = trim($_POST['return_reason'] ?? '');
+    $orderId       = (int)($_POST['order_id'] ?? 0);
     $returnRemarks = trim($_POST['return_remarks'] ?? '');
 
-    if (!$returnReason || !$returnRemarks) {
-        setFlash('danger','Please select a reason and enter remarks.');
+    if (!$returnRemarks) {
+        setFlash('danger','Please enter your remarks to explain why you are returning this order.');
         header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
     }
 
-    // Determine route
-    $route = match($returnAction) {
-        'back_to_survey'  => 'BSA',
-        'back_to_pricing' => 'KAM',
-        default           => 'BSA',
-    };
-
-    $newStatus = $route === 'KAM' ? 'Await Commercial Approval' : 'Feasibility Review';
-
-    $db->prepare("UPDATE orders SET
-        status = ?, return_reason = ?, return_remarks = ?,
-        return_route = ?, returned_by = ?, returned_at = NOW(),
-        updated_at = NOW()
-        WHERE id = ?")->execute([$newStatus, $returnReason, $returnRemarks, $route, $user['id'], $orderId]);
+    // Partner return ALWAYS routes back to KAM (Await Commercial Approval)
+    // KAM can then internally route to BSA or Management
+    $newStatus = 'Await Commercial Approval';
 
     $orderStmt = $db->prepare("SELECT standard_nrc, revised_nrc, standard_mrc, revised_mrc FROM orders WHERE id = ?");
     $orderStmt->execute([$orderId]);
     $oRow = $orderStmt->fetch();
 
-    // Audit return
+    $db->prepare("UPDATE orders SET
+        status = ?, sof_return_comments = ?,
+        return_route = 'KAM', returned_by = ?, returned_at = NOW(),
+        updated_at = NOW()
+        WHERE id = ?")->execute([$newStatus, $returnRemarks, $user['id'], $orderId]);
+
     $db->prepare("INSERT INTO order_returns (order_id, returned_by, from_status, to_status, return_reason, return_remarks, routed_to, old_nrc, old_mrc) VALUES (?,?,?,?,?,?,?,?,?)")
-       ->execute([$orderId, $user['id'], 'Pending SOF', $newStatus, $returnReason, $returnRemarks, $route, $oRow['revised_nrc'] ?? $oRow['standard_nrc'], $oRow['revised_mrc'] ?? $oRow['standard_mrc']]);
+       ->execute([$orderId, $user['id'], 'Pending SOF', $newStatus, 'Partner not satisfied with pricing', $returnRemarks, 'KAM', $oRow['revised_nrc'] ?? $oRow['standard_nrc'], $oRow['revised_mrc'] ?? $oRow['standard_mrc']]);
 
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, $newStatus, "Partner returned to $route: $returnReason — $returnRemarks", $user['id']]);
+       ->execute([$orderId, $newStatus, "Partner not satisfied — returned to Account Manager: $returnRemarks", $user['id']]);
 
     queueOrderNotification($orderId, 'Partner Returned Feasibility');
-    auditLog("Partner returned order #$orderId to $route ($returnReason)", 'orders', $orderId);
-    setFlash('warning', "Order returned to $route for review.");
+    auditLog("Partner returned order #$orderId to KAM: $returnRemarks", 'orders', $orderId);
+    setFlash('warning', 'Order returned to your Account Manager for revision.');
+    header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+    exit;
+}
+
+// ------------------------------------------------------------------
+// POST: Partner — Delete uploaded signed SOF (to re-upload)
+// ------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete_signed_sof') {
+    verifyCsrf();
+    if (!isPartnerUser() && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+
+    $orderId = (int)($_POST['order_id'] ?? 0);
+    $orderStmt = $db->prepare("SELECT status, sof_signed_file FROM orders WHERE id = ?");
+    $orderStmt->execute([$orderId]);
+    $o = $orderStmt->fetch();
+
+    if (!$o || $o['status'] !== 'Pending SOF') {
+        setFlash('danger','SOF can only be deleted while the order is in Pending SOF status.');
+        header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+    }
+
+    // Clear signed SOF from DB (file stays on disk for audit purposes)
+    $db->prepare("UPDATE orders SET sof_signed_file = NULL, sof_signed_filename = NULL, sof_uploaded_at = NULL, updated_at = NOW() WHERE id = ?")
+       ->execute([$orderId]);
+    $db->prepare("DELETE FROM order_documents WHERE order_id = ? AND document_type = 'Signed SOF'")
+       ->execute([$orderId]);
+
+    $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
+       ->execute([$orderId, 'Pending SOF', 'Partner deleted uploaded SOF. Please re-upload the correct signed document.', $user['id']]);
+
+    auditLog("Signed SOF deleted for order #$orderId by partner", 'orders', $orderId);
+    setFlash('info', 'Signed SOF removed. Please upload the correct signed document.');
     header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
     exit;
 }
@@ -579,11 +749,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'return_sof') {
 }
 
 // ------------------------------------------------------------------
-// POST: KAM/Admin — Upload Countersigned SOF
+// POST: KAM or Management — Upload Countersigned SOF
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_countersigned_sof') {
     verifyCsrf();
-    if (!hasRole('KAM') && !isAdmin()) { setFlash('danger','Only KAM or Admin can upload countersigned SOF.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+    if (!hasRole('KAM','Management') && !isAdmin()) { setFlash('danger','Only KAM, Management, or Admin can upload countersigned SOF.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
     $orderId = (int)($_POST['order_id'] ?? 0);
     if (empty($_FILES['countersigned_sof']['name'])) {
@@ -599,15 +769,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_countersigned_s
             updated_at = NOW()
             WHERE id = ?")->execute([$up['path'], $up['name'], $user['id'], $orderId]);
 
-        $db->prepare("INSERT INTO order_documents (order_id, document_type, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?)")
-           ->execute([$orderId, 'Countersigned SOF', $up['name'], $up['path'], $up['size'], $user['id']]);
+        $db->prepare("INSERT INTO order_documents (order_id, doc_type, document_type, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?)")
+           ->execute([$orderId, 'countersigned_sof', 'Countersigned SOF', $up['name'], $up['path'], $up['size'], $user['id']]);
 
         $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-           ->execute([$orderId, 'SOF Review', 'Countersigned SOF uploaded. Ready to proceed to project.', $user['id']]);
+           ->execute([$orderId, 'SOF Review', 'Countersigned SOF uploaded by ' . ($user['role'] ?? 'internal') . '. Ready to proceed to project.', $user['id']]);
 
         queueOrderNotification($orderId, 'Countersigned SOF Uploaded');
-        auditLog("Countersigned SOF uploaded for order #$orderId", 'orders', $orderId);
-        setFlash('success', 'Countersigned SOF uploaded. You can now proceed to project.');
+        auditLog("Countersigned SOF uploaded for order #$orderId by {$user['role']}", 'orders', $orderId);
+        setFlash('success', 'Countersigned SOF uploaded successfully. You can now proceed to project.');
     } catch (RuntimeException $e) {
         setFlash('danger', 'Upload failed: ' . e($e->getMessage()));
     }
@@ -617,11 +787,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_countersigned_s
 }
 
 // ------------------------------------------------------------------
-// POST: KAM/Admin — Proceed to Project (Installation)
+// POST: KAM or Management — Proceed to Project (Installation)
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'proceed_to_project') {
     verifyCsrf();
-    if (!hasRole('KAM') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+    if (!hasRole('KAM','Management') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
     $orderId = (int)($_POST['order_id'] ?? 0);
     $orderStmt = $db->prepare("SELECT * FROM orders WHERE id = ?");
@@ -643,7 +813,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'proceed_to_project') {
        ->execute([$orderId, 'Installation', 'Countersigned SOF verified — order released to Project Installation.', $user['id']]);
 
     queueOrderNotification($orderId, 'Proceed to Project');
-    auditLog("Order #$orderId moved to Installation", 'orders', $orderId);
+    auditLog("Order #$orderId moved to Installation by {$user['role']}", 'orders', $orderId);
     setFlash('success', 'Order moved to Installation. Project Manager should assign a contractor.');
     header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
     exit;
@@ -684,6 +854,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'assign_contractor') {
     exit;
 }
 
+// ------------------------------------------------------------------
+// POST: Project Manager/BSA — Set NOC IP Configured flag
+// ------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'toggle_noc_ip') {
+    verifyCsrf();
+    if (!hasRole('Project Manager','BSA') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+
+    $orderId = (int)($_POST['order_id'] ?? 0);
+    $value   = (int)($_POST['noc_ip_configured'] ?? 0) ? 1 : 0;
+
+    $db->prepare("UPDATE orders SET noc_ip_configured = ?, updated_at = NOW() WHERE id = ?")
+       ->execute([$value, $orderId]);
+
+    $label = $value ? 'NOC IP configuration marked as COMPLETE — Speed Test and Ping Test evidence are now required.' : 'NOC IP configuration flag cleared.';
+    $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) SELECT id, status, ?, ? FROM orders WHERE id = ?")
+       ->execute([$label, $user['id'], $orderId]);
+
+    auditLog("NOC IP configured flag set to $value for order #$orderId", 'orders', $orderId);
+    setFlash('success', $label);
+    header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+    exit;
+}
+
+
+// ------------------------------------------------------------------
+// POST: Project Manager/BSA — Submit Job as Complete (Installation → Testing)
+// ------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['submit_installation_complete', 'submit_completion'])) {
+    verifyCsrf();
+    if (!hasRole('Project Manager','BSA') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+
+    $orderId = (int)($_POST['order_id'] ?? 0);
+    $remarks = trim($_POST['completion_remarks'] ?? '');
+
+    $orderStmt = $db->prepare("SELECT * FROM orders WHERE id = ?");
+    $orderStmt->execute([$orderId]);
+    $o = $orderStmt->fetch();
+    if (!$o) { setFlash('danger','Order not found.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
+
+    // Update assignment if any exists
+    $db->prepare("UPDATE contractor_assignments SET status = 'Completed Submitted', completed_at = NOW(), completion_remarks = ? WHERE order_id = ? AND status != 'Completed'")
+       ->execute([$remarks, $orderId]);
+
+    // Move order to Testing status
+    $db->prepare("UPDATE orders SET status = 'Testing', updated_at = NOW() WHERE id = ?")
+       ->execute([$orderId]);
+
+    evaluateAndSyncOrderStatus($orderId, 'submit_completion');
+
+    $note = "Job completion submitted by Project Manager. " . ($remarks ? "Remarks: $remarks" : "Awaiting Testing — Internal Review.");
+    $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
+       ->execute([$orderId, 'Testing', $note, $user['id']]);
+
+    auditLog("Project Manager submitted job as complete for order #$orderId, moved to Testing", 'orders', $orderId);
+    setFlash('success', 'Installation submitted. Order is now in <strong>Testing — Internal Review</strong>.');
+    header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+    exit;
+}
 
 // ------------------------------------------------------------------
 // POST: Project Manager/BSA — Approve Testing (Testing → UAT)
@@ -693,16 +921,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'approve_testing') {
     if (!hasRole('Project Manager','BSA') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=orders'); exit; }
 
     $orderId = (int)($_POST['order_id'] ?? 0);
-    $orderStmt = $db->prepare("SELECT status FROM orders WHERE id = ?");
+    $orderStmt = $db->prepare("SELECT status, noc_ip_configured FROM orders WHERE id = ?");
     $orderStmt->execute([$orderId]);
     $o = $orderStmt->fetch();
     if (!$o || $o['status'] !== 'Testing') { setFlash('danger','Order must be in Testing status.'); header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit; }
+
+    // Gate: NOC must have configured IP before moving to UAT (business rule)
+    if (!$o['noc_ip_configured']) {
+        setFlash('danger','Cannot proceed to UAT until NOC IP Configuration is marked as complete. Please set the NOC IP Configured flag first.');
+        header('Location:'.APP_URL.'/?page=order_detail&id='.$orderId); exit;
+    }
 
     $db->prepare("UPDATE orders SET status = 'UAT', uat_notified_at = NOW(), uat_deadline = DATE_ADD(NOW(), INTERVAL 72 HOUR), updated_at = NOW() WHERE id = ?")
        ->execute([$orderId]);
 
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
-       ->execute([$orderId, 'UAT', 'Testing approved. Partner notified for UAT acceptance (72hr window).', $user['id']]);
+       ->execute([$orderId, 'UAT', 'Testing approved (NOC IP configured). Partner notified for UAT acceptance (72hr window).', $user['id']]);
 
     queueOrderNotification($orderId, 'Testing Approved');
     auditLog("Testing approved for order #$orderId, moved to UAT", 'orders', $orderId);
@@ -763,8 +997,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'uat_accept') {
     $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
        ->execute([$orderId, 'Closed', "Partner accepted service. Order closed. Closed Date: $today. Billing Start Date: $today.", $user['id']]);
 
-    // Create active service record
-    $serviceId = 'SVC-' . date('ymd') . '-' . str_pad($orderId, 3, '0', STR_PAD_LEFT);
+    // Create active service record (Service ID SVC-YYMMDD-XXX mirrors Order Number FR-YYMMDD-XXX)
+    $serviceId = generateServiceId($o['order_number'] ?? '');
     $circuitId = 'CKT-' . $o['order_number'];
     $db->prepare("INSERT INTO active_services (service_id, order_id, partner_id, customer_name, service_type, circuit_id, bandwidth_capacity, location, building_name, kam_id, activation_date, billing_start_date, status, monitoring_status)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE order_id=order_id")->execute([
@@ -820,16 +1054,133 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'adjust_billing_date') 
 }
 
 // ------------------------------------------------------------------
+// POST: Edit Closed Order (Admin and Management only with mandatory audit reason)
+// ------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'edit_closed_order') {
+    verifyCsrf();
+    if (!isAdmin() && !hasRole('Management')) {
+        setFlash('danger', 'Access denied. Closed orders can only be edited by Admin and Management.');
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . (int)($_POST['order_id'] ?? 0));
+        exit;
+    }
+
+    $orderId = (int)($_POST['order_id'] ?? 0);
+    $stmt = $db->prepare("SELECT * FROM orders WHERE id = ?");
+    $stmt->execute([$orderId]);
+    $order = $stmt->fetch();
+
+    if (!$order) {
+        setFlash('danger', 'Order not found.');
+        header('Location: ' . APP_URL . '/?page=orders');
+        exit;
+    }
+
+    if ($order['status'] !== 'Closed') {
+        setFlash('danger', 'This action is reserved for Closed orders.');
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+        exit;
+    }
+
+    $auditReason = trim($_POST['audit_reason'] ?? '');
+    if (empty($auditReason)) {
+        setFlash('danger', 'An audit reason is strictly mandatory when editing a closed order.');
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+        exit;
+    }
+
+    // Editable fields
+    $customerName    = trim($_POST['customer_name'] ?? $order['customer_name']);
+    $contactName     = trim($_POST['customer_contact_name'] ?? $order['customer_contact_name']);
+    $contactPhone    = trim($_POST['customer_contact_phone'] ?? $order['customer_contact_phone']);
+    $contactEmail    = trim($_POST['customer_contact_email'] ?? $order['customer_contact_email']);
+    $location        = trim($_POST['customer_location'] ?? $order['customer_location']);
+    $buildingName    = trim($_POST['building_name'] ?? $order['building_name']);
+    $gpsCoordinates  = trim($_POST['gps_coordinates'] ?? $order['gps_coordinates']);
+    $bandwidth       = trim($_POST['bandwidth'] ?? $order['bandwidth']);
+    $circuitId       = trim($_POST['circuit_id'] ?? $order['circuit_id']);
+    $serviceId       = trim($_POST['service_id'] ?? $order['service_id']);
+    $specialReqs     = trim($_POST['special_requirements'] ?? $order['special_requirements']);
+
+    // Track changes for timeline and audit
+    $changes = [];
+    if ($customerName !== $order['customer_name']) $changes[] = "Customer Name: '{$order['customer_name']}' → '{$customerName}'";
+    if ($contactName !== $order['customer_contact_name']) $changes[] = "Contact Name: '{$order['customer_contact_name']}' → '{$contactName}'";
+    if ($contactPhone !== $order['customer_contact_phone']) $changes[] = "Contact Phone: '{$order['customer_contact_phone']}' → '{$contactPhone}'";
+    if ($contactEmail !== $order['customer_contact_email']) $changes[] = "Contact Email: '{$order['customer_contact_email']}' → '{$contactEmail}'";
+    if ($location !== $order['customer_location']) $changes[] = "Location: '{$order['customer_location']}' → '{$location}'";
+    if ($buildingName !== $order['building_name']) $changes[] = "Building: '{$order['building_name']}' → '{$buildingName}'";
+    if ($gpsCoordinates !== $order['gps_coordinates']) $changes[] = "GPS: '{$order['gps_coordinates']}' → '{$gpsCoordinates}'";
+    if ($bandwidth !== $order['bandwidth']) $changes[] = "Bandwidth: '{$order['bandwidth']}' → '{$bandwidth}'";
+    if ($circuitId !== $order['circuit_id']) $changes[] = "Circuit ID: '{$order['circuit_id']}' → '{$circuitId}'";
+    if ($serviceId !== $order['service_id']) $changes[] = "Service ID: '{$order['service_id']}' → '{$serviceId}'";
+    if ($specialReqs !== $order['special_requirements']) $changes[] = "Special Requirements updated";
+
+    $changeSummary = !empty($changes) ? implode('; ', $changes) : 'Metadata re-verified (no field changes)';
+
+    // Update order
+    $db->prepare("UPDATE orders SET
+        customer_name = ?, customer_contact_name = ?, customer_contact_phone = ?,
+        customer_contact_email = ?, customer_location = ?, building_name = ?,
+        gps_coordinates = ?, bandwidth = ?, circuit_id = ?, service_id = ?,
+        special_requirements = ?, updated_at = NOW()
+        WHERE id = ?")->execute([
+        $customerName, $contactName, $contactPhone,
+        $contactEmail, $location, $buildingName,
+        $gpsCoordinates, $bandwidth, $circuitId, $serviceId,
+        $specialReqs, $orderId
+    ]);
+
+    // Update corresponding active service if exists
+    $db->prepare("UPDATE active_services SET
+        customer_name = ?, location = ?, building_name = ?,
+        circuit_id = ?, bandwidth_capacity = ?
+        WHERE order_id = ?")->execute([
+        $customerName, $location, $buildingName,
+        $circuitId, $bandwidth, $orderId
+    ]);
+
+    // Timeline entry
+    $timelineNote = "Closed order modified by {$user['full_name']} (" . (isAdmin() ? 'Admin' : 'Management') . ").\nAudit Reason: {$auditReason}\nModifications: {$changeSummary}";
+    $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")
+       ->execute([$orderId, 'Closed', $timelineNote, $user['id']]);
+
+    // System audit log
+    auditLog("Closed order #{$order['order_number']} edited by {$user['full_name']}. Reason: $auditReason. Changes: $changeSummary", 'orders', $orderId);
+
+    setFlash('success', "Closed order <strong>" . e($order['order_number']) . "</strong> updated successfully with audit reason recorded.");
+    header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+    exit;
+}
+
+// ------------------------------------------------------------------
 // POST: Update order status (Admin override)
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_status') {
     verifyCsrf();
-    if (!isAdmin()) { setFlash('danger','Access denied. Admin only.'); header('Location: ' . APP_URL . '/?page=orders'); exit; }
+    if (!isAdmin() && !hasRole('Management')) { 
+        setFlash('danger','Access denied. Admin or Management only.'); 
+        header('Location: ' . APP_URL . '/?page=orders'); 
+        exit; 
+    }
 
     $orderId        = (int)($_POST['order_id'] ?? 0);
     $newStatus      = $_POST['new_status'] ?? '';
     $newServiceType = $_POST['new_service_type'] ?? '';
-    $note           = $_POST['note'] ?? 'Admin status override.';
+    $note           = trim($_POST['note'] ?? '');
+
+    $curStmt = $db->prepare("SELECT status, order_number FROM orders WHERE id = ?");
+    $curStmt->execute([$orderId]);
+    $curOrder = $curStmt->fetch();
+
+    if ($curOrder && $curOrder['status'] === 'Closed' && empty($note)) {
+        setFlash('danger', 'Audit reason / note is strictly required when modifying a Closed order.');
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+        exit;
+    }
+
+    if (empty($note)) {
+        $note = 'Admin status override.';
+    }
 
     if (!empty($newServiceType)) {
         $db->prepare("UPDATE orders SET service_type = ? WHERE id = ?")->execute([$newServiceType, $orderId]);
@@ -838,8 +1189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_status') {
         $db->prepare("UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?")->execute([$newStatus, $orderId]);
         $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) VALUES (?,?,?,?)")->execute([$orderId, $newStatus, $note, $user['id']]);
     }
-    auditLog("Admin status/service type override for order #$orderId", 'orders', $orderId);
-    setFlash('success', 'Order status updated by Admin.');
+    auditLog("Admin/Management status override for order #$orderId (Reason: $note)", 'orders', $orderId);
+    setFlash('success', 'Order status updated successfully.');
     header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
     exit;
 }
@@ -876,43 +1227,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete') {
 }
 
 // ------------------------------------------------------------------
-// Generate Service Order Form (SOF)
-// ------------------------------------------------------------------
-if ($action === 'generate_sof') {
-    $orderId = (int)($_GET['id'] ?? 0);
-    $pw = partnerWhere('o');
-
-    $stmt = $db->prepare("SELECT o.*, p.name as partner_name,
-        pka.registered_name as partner_registered_name,
-        pka.address as partner_address, pka.auth_signatory_name, pka.auth_signatory_email,
-        pka.finance_contact_name, pka.billing_email, pka.tech_contact_name
-        FROM orders o
-        JOIN partners p ON o.partner_id = p.id
-        LEFT JOIN partner_kyc_applications pka ON pka.partner_id = o.partner_id
-        WHERE o.id = ? AND {$pw['condition']}");
-    $stmt->execute(array_merge([$orderId], $pw['params']));
-    $order = $stmt->fetch();
-    if (!$order) { http_response_code(404); echo '<p style="padding:40px">Order not found.</p>'; exit; }
-
-    if (isset($_GET['format']) && $_GET['format'] === 'excel') {
-        require_once APP_DIR . '/helpers/sof_excel.php';
-        try {
-            $excelFile = generateSOFExcel($order);
-            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            header('Content-Disposition: attachment; filename="' . basename($excelFile) . '"');
-            header('Content-Length: ' . filesize($excelFile));
-            readfile($excelFile);
-            exit;
-        } catch (Exception $e) {
-            setFlash('danger', 'Excel generation note: ' . e($e->getMessage()));
-        }
-    }
-
-    include APP_DIR . '/views/orders/generate_sof.php';
-    exit;
-}
-
-// ------------------------------------------------------------------
 // Order Detail
 // ------------------------------------------------------------------
 if ($action === 'detail' || $_GET['page'] === 'order_detail') {
@@ -931,9 +1245,18 @@ if ($action === 'detail' || $_GET['page'] === 'order_detail') {
     $order = $stmt->fetch();
     if (!$order) { http_response_code(404); echo '<p style="padding:40px">Order not found.</p>'; exit; }
 
-    $timeline = $db->prepare("SELECT ot.*, u.full_name FROM order_timeline ot LEFT JOIN users u ON ot.changed_by = u.id WHERE ot.order_id = ? ORDER BY ot.changed_at DESC");
-    $timeline->execute([$orderId]);
-    $timeline = $timeline->fetchAll();
+    // RBAC: Partner users receive a sanitized timeline — the `note` column is never
+    // selected, so it cannot appear in the HTTP response, page source, or DevTools.
+    // Authorized internal users receive the full query including event descriptions.
+    if (isPartnerUser()) {
+        $timelineStmt = $db->prepare("SELECT ot.id, ot.order_id, ot.status, ot.changed_at, u.full_name FROM order_timeline ot LEFT JOIN users u ON ot.changed_by = u.id WHERE ot.order_id = ? ORDER BY ot.changed_at DESC");
+    } else {
+        $timelineStmt = $db->prepare("SELECT ot.*, u.full_name FROM order_timeline ot LEFT JOIN users u ON ot.changed_by = u.id WHERE ot.order_id = ? ORDER BY ot.changed_at DESC");
+    }
+    $timelineStmt->execute([$orderId]);
+    $timeline = $timelineStmt->fetchAll();
+
+
 
     $docs = $db->prepare("SELECT od.*, u.full_name FROM order_documents od LEFT JOIN users u ON od.uploaded_by = u.id WHERE od.order_id = ? ORDER BY od.uploaded_at DESC");
     $docs->execute([$orderId]);
@@ -970,6 +1293,9 @@ if ($action === 'detail' || $_GET['page'] === 'order_detail') {
     $returnsStmt->execute([$orderId]);
     $orderReturns = $returnsStmt->fetchAll();
 
+    // Price change audit trail
+    $priceAudit = getOrderPriceAudit($orderId);
+
     $allStatuses = ['Feasibility Review','Await Commercial Approval','Management Approval','Pending SOF','SOF Review','Installation','Testing','UAT','Closed','Not Feasible','Cancelled'];
 
     $pageTitle = 'Order ' . $order['order_number'];
@@ -983,6 +1309,7 @@ if ($action === 'detail' || $_GET['page'] === 'order_detail') {
 // New Order / Feasibility Request form
 // ------------------------------------------------------------------
 if ($_GET['page'] === 'new_order') {
+    requirePermission('orders.create');
     $partners = [];
     $partnerKamName = null;
     if (!isPartnerUser()) {
@@ -1012,10 +1339,64 @@ $params = $pw['params'];
 $filterStatus  = $_GET['status'] ?? '';
 $filterService = $_GET['service_type'] ?? '';
 $filterSearch  = $_GET['q'] ?? '';
+$filterSla     = $_GET['sla'] ?? '';
+$filterPreset  = $_GET['preset'] ?? '';
+$filterStart   = trim($_GET['start_date'] ?? '');
+$filterEnd     = trim($_GET['end_date'] ?? '');
+
+if ($filterPreset === 'today') {
+    $filterStart = date('Y-m-d');
+    $filterEnd   = date('Y-m-d');
+} elseif ($filterPreset === 'this_month') {
+    $filterStart = date('Y-m-01');
+    $filterEnd   = date('Y-m-t');
+} elseif ($filterPreset === 'last_month') {
+    $filterStart = date('Y-m-01', strtotime('-1 month'));
+    $filterEnd   = date('Y-m-t', strtotime('-1 month'));
+} elseif ($filterPreset === 'this_year') {
+    $filterStart = date('Y-01-01');
+    $filterEnd   = date('Y-12-31');
+}
+
+if ($filterStart && $filterEnd) {
+    $where .= " AND o.created_at BETWEEN ? AND ?";
+    $params[] = $filterStart . ' 00:00:00';
+    $params[] = $filterEnd . ' 23:59:59';
+} elseif ($filterStart) {
+    $where .= " AND o.created_at >= ?";
+    $params[] = $filterStart . ' 00:00:00';
+} elseif ($filterEnd) {
+    $where .= " AND o.created_at <= ?";
+    $params[] = $filterEnd . ' 23:59:59';
+}
 
 if ($filterStatus)  { $where .= " AND o.status = ?";       $params[] = $filterStatus; }
 if ($filterService) { $where .= " AND o.service_type = ?"; $params[] = $filterService; }
+if ($filterSla === 'paused') {
+    $where .= " AND o.sla_paused = 1";
+} elseif ($filterSla === 'breached') {
+    $candStmt = $db->prepare("SELECT o.* FROM orders o JOIN partners p ON o.partner_id = p.id $where");
+    $candStmt->execute($params);
+    $cands = $candStmt->fetchAll(PDO::FETCH_ASSOC);
+    $breachedIds = [];
+    if (!empty($cands)) {
+        $analytics = computeComprehensiveSlaAnalytics($cands, $db);
+        foreach ($analytics['order_evaluations'] as $ev) {
+            if ($ev['order_sla_status'] === 'Breached') {
+                $breachedIds[] = $ev['order_id'];
+            }
+        }
+    }
+    if (!empty($breachedIds)) {
+        $inList = implode(',', $breachedIds);
+        $where .= " AND o.id IN ($inList)";
+    } else {
+        $where .= " AND 1=0";
+    }
+}
 if ($filterSearch)  { $where .= " AND (o.order_number LIKE ? OR o.customer_name LIKE ? OR o.circuit_id LIKE ?)"; $params[] = "%$filterSearch%"; $params[] = "%$filterSearch%"; $params[] = "%$filterSearch%"; }
+
+
 
 $totalStmt = $db->prepare("SELECT COUNT(*) FROM orders o JOIN partners p ON o.partner_id = p.id $where");
 $totalStmt->execute($params);

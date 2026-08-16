@@ -54,17 +54,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'accept_job') {
 }
 
 // ------------------------------------------------------------------
-// POST: Post Progress Update
+// POST: Post Progress Update (with optional SLA pause/resume)
 // ------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'progress_update') {
     verifyCsrf();
     if (!isContractorUser() && !hasRole('Project Manager') && !isAdmin()) { setFlash('danger','Access denied.'); header('Location:'.APP_URL.'/?page=contractor'); exit; }
 
-    $assignmentId = (int)($_POST['assignment_id'] ?? 0);
-    $orderId      = (int)($_POST['order_id'] ?? 0);
+    $assignmentId   = (int)($_POST['assignment_id'] ?? 0);
+    $orderId        = (int)($_POST['order_id'] ?? 0);
     $progressStatus = $_POST['progress_status'] ?? 'In Progress';
     $delayReason    = $_POST['delay_reason'] ?? null;
     $notes          = trim($_POST['notes'] ?? '');
+    $isBlocker      = (int)($_POST['is_blocker'] ?? 0);
+    $isResumed      = (int)($_POST['is_resumed'] ?? 0);
 
     if (!$notes) { setFlash('danger','Notes are required for progress update.'); header('Location:'.APP_URL.'/?page=contractor&action=job&id='.$assignmentId); exit; }
 
@@ -78,14 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'progress_update') {
     }
     if (!$aStmt->fetch()) { setFlash('danger','Assignment not found.'); header('Location:'.APP_URL.'/?page=contractor'); exit; }
 
-    $db->prepare("INSERT INTO contractor_progress_updates (assignment_id, order_id, updated_by, progress_status, delay_reason, notes) VALUES (?,?,?,?,?,?)")
-       ->execute([$assignmentId, $orderId, $user['id'], $progressStatus, $delayReason ?: null, $notes]);
+    $db->prepare("INSERT INTO contractor_progress_updates (assignment_id, order_id, updated_by, progress_status, is_blocker, is_resumed, delay_reason, notes) VALUES (?,?,?,?,?,?,?,?)")
+       ->execute([$assignmentId, $orderId, $user['id'], $progressStatus, $isBlocker, $isResumed, $delayReason ?: null, $notes]);
 
     $db->prepare("UPDATE contractor_assignments SET status = 'In Progress' WHERE id = ? AND status = 'Accepted'")
        ->execute([$assignmentId]);
 
-    auditLog("Progress update on assignment #$assignmentId", 'contractor_assignments', $assignmentId);
-    setFlash('success', 'Progress update submitted.');
+    // Auto-trigger SLA pause/resume
+    if ($isBlocker && !$isResumed) {
+        pauseOrderSLA($orderId, $user['id']);
+        $db->prepare("INSERT INTO order_timeline (order_id, status, note, changed_by) SELECT id, status, ?, ? FROM orders WHERE id = ?")
+           ->execute(["Contractor blocker: $notes" . ($delayReason ? " [Reason: $delayReason]" : ''), $user['id'], $orderId]);
+    } elseif ($isResumed) {
+        resumeOrderSLA($orderId, $user['id']);
+    }
+
+    auditLog("Progress update on assignment #$assignmentId" . ($isBlocker ? ' [BLOCKER]' : '') . ($isResumed ? ' [RESUMED]' : ''), 'contractor_assignments', $assignmentId);
+    setFlash('success', 'Progress update submitted.' . ($isBlocker ? ' SLA clock paused.' : '') . ($isResumed ? ' SLA clock resumed.' : ''));
     header('Location: ' . APP_URL . '/?page=contractor&action=job&id=' . $assignmentId);
     exit;
 }
@@ -115,26 +126,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_evidence') {
         if (!$aStmt->fetch()) { setFlash('danger','Assignment not found.'); header('Location:'.APP_URL.'/?page=contractor'); exit; }
     }
 
-    $filePath = null; $fileName = null; $fileSize = null;
-    if (!empty($_FILES['evidence_file']['name'])) {
-        try {
-            $up = uploadFile($_FILES['evidence_file'], 'orders/'.$orderId.'/evidence');
-            $filePath = $up['path'];
-            $fileName = $up['name'];
-            $fileSize = $up['size'];
-        } catch (RuntimeException $e) {
-            setFlash('danger', 'Upload error: ' . e($e->getMessage()));
-            header('Location:'.APP_URL.'/?page=contractor&action=job&id='.$assignmentId); exit;
+    $uploadedCount = 0;
+
+    // Support multiple files under evidence_files[]
+    if (!empty($_FILES['evidence_files']['name']) && is_array($_FILES['evidence_files']['name'])) {
+        $count = count($_FILES['evidence_files']['name']);
+        for ($i = 0; $i < $count; $i++) {
+            if ($_FILES['evidence_files']['error'][$i] === UPLOAD_ERR_OK && !empty($_FILES['evidence_files']['name'][$i])) {
+                $fileArr = [
+                    'name'     => $_FILES['evidence_files']['name'][$i],
+                    'type'     => $_FILES['evidence_files']['type'][$i] ?? '',
+                    'tmp_name' => $_FILES['evidence_files']['tmp_name'][$i],
+                    'error'    => $_FILES['evidence_files']['error'][$i],
+                    'size'     => $_FILES['evidence_files']['size'][$i]
+                ];
+                try {
+                    $up = uploadFile($fileArr, 'orders/'.$orderId.'/evidence');
+                    $db->prepare("INSERT INTO contractor_evidence (assignment_id, order_id, evidence_type, serial_number, notes, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)")
+                       ->execute([$assignmentId, $orderId, $evidenceType, $serialNum ?: null, $notes ?: null, $up['name'], $up['path'], $up['size'], $user['id']]);
+                    $uploadedCount++;
+                } catch (RuntimeException $e) {
+                    error_log('Multi-file upload error: ' . $e->getMessage());
+                }
+            }
         }
     }
 
-    $db->prepare("INSERT INTO contractor_evidence (assignment_id, order_id, evidence_type, serial_number, notes, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)")
-       ->execute([$assignmentId, $orderId, $evidenceType, $serialNum ?: null, $notes ?: null, $fileName, $filePath, $fileSize, $user['id']]);
+    // Support single file under evidence_file
+    if ($uploadedCount === 0 && !empty($_FILES['evidence_file']['name']) && !is_array($_FILES['evidence_file']['name'])) {
+        if ($_FILES['evidence_file']['error'] === UPLOAD_ERR_OK) {
+            try {
+                $up = uploadFile($_FILES['evidence_file'], 'orders/'.$orderId.'/evidence');
+                $db->prepare("INSERT INTO contractor_evidence (assignment_id, order_id, evidence_type, serial_number, notes, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)")
+                   ->execute([$assignmentId, $orderId, $evidenceType, $serialNum ?: null, $notes ?: null, $up['name'], $up['path'], $up['size'], $user['id']]);
+                $uploadedCount++;
+            } catch (RuntimeException $e) {
+                setFlash('danger', 'Upload error: ' . e($e->getMessage()));
+                header('Location:'.APP_URL.'/?page=contractor&action=job&id='.$assignmentId); exit;
+            }
+        }
+    }
+
+    // Support text/serial only evidence if no file was uploaded
+    if ($uploadedCount === 0 && ($serialNum || $notes)) {
+        $db->prepare("INSERT INTO contractor_evidence (assignment_id, order_id, evidence_type, serial_number, notes, file_name, file_path, file_size, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)")
+           ->execute([$assignmentId, $orderId, $evidenceType, $serialNum ?: null, $notes ?: null, null, null, null, $user['id']]);
+        $uploadedCount++;
+    }
 
     evaluateAndSyncOrderStatus($orderId, 'upload_evidence');
 
-    auditLog("Evidence uploaded: $evidenceType for assignment #$assignmentId", 'contractor_evidence', 0);
-    setFlash('success', "Evidence ($evidenceType) uploaded.");
+    auditLog("Evidence uploaded ($uploadedCount file(s)): $evidenceType for assignment #$assignmentId", 'contractor_evidence', 0);
+    setFlash('success', "Evidence ($evidenceType) successfully recorded ($uploadedCount item(s)).");
     if ($assignmentId > 0) {
         header('Location: ' . APP_URL . '/?page=contractor&action=job&id=' . $assignmentId);
     } else {
@@ -361,9 +404,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'submit_completion') {
        ->execute([$assignmentId, $orderId, $user['id'], 'Completed', "Installation completed and submitted for review. $remarks"]);
 
     queueOrderNotification($orderId, 'Contractor Completed');
-    auditLog("Submitted completion for assignment #$assignmentId, order #$orderId moved to Testing", 'contractor_assignments', $assignmentId);
-    setFlash('success', 'Installation submitted. Project Manager will review for testing approval.');
-    header('Location: ' . APP_URL . '/?page=contractor&action=job&id=' . $assignmentId);
+    setFlash('success', 'Installation submitted. Order is now in <strong>Testing — Internal Review</strong>.');
+    if (!isContractorUser() && (hasRole('Project Manager', 'BSA') || isAdmin())) {
+        header('Location: ' . APP_URL . '/?page=order_detail&id=' . $orderId);
+    } else {
+        header('Location: ' . APP_URL . '/?page=contractor&action=job&id=' . $assignmentId);
+    }
     exit;
 }
 
@@ -421,7 +467,8 @@ if ($action === 'job') {
 
     if ($partnerId) {
         $aStmt = $db->prepare("SELECT ca.*, p.name as contractor_name, o.order_number, o.status as order_status,
-            o.customer_name, o.customer_location, o.service_type, o.gps_coordinates, o.building_name,
+            o.customer_name, o.customer_location, o.service_type, o.fttx_package, o.aggregate_capacity, o.bandwidth,
+            o.remote_hands_nrc_usd, o.base_nrc_usd, o.standard_nrc, o.gps_coordinates, o.building_name,
             o.special_requirements, o.bsa_delivery_method, o.bsa_special_conditions,
             u.full_name as assigned_by_name, u2.full_name as accepted_by_name,
             partner.name as partner_name
@@ -435,7 +482,8 @@ if ($action === 'job') {
         $aStmt->execute([$assignmentId, $partnerId]);
     } else {
         $aStmt = $db->prepare("SELECT ca.*, p.name as contractor_name, o.order_number, o.status as order_status,
-            o.customer_name, o.customer_location, o.service_type, o.gps_coordinates, o.building_name,
+            o.customer_name, o.customer_location, o.service_type, o.fttx_package, o.aggregate_capacity, o.bandwidth,
+            o.remote_hands_nrc_usd, o.base_nrc_usd, o.standard_nrc, o.gps_coordinates, o.building_name,
             o.special_requirements, o.bsa_delivery_method, o.bsa_special_conditions,
             u.full_name as assigned_by_name, u2.full_name as accepted_by_name,
             partner.name as partner_name
@@ -528,8 +576,9 @@ if ($action === 'job') {
 // Contractor Dashboard (list all assignments)
 // ------------------------------------------------------------------
 if ($partnerId) {
-    $myJobs = $db->prepare("SELECT ca.*, o.order_number, o.customer_name, o.service_type, o.customer_location,
-        o.status as order_status, partner.name as partner_name
+    $myJobs = $db->prepare("SELECT ca.*, o.order_number, o.customer_name, o.service_type, o.fttx_package,
+        o.aggregate_capacity, o.bandwidth, o.remote_hands_nrc_usd, o.base_nrc_usd, o.standard_nrc,
+        o.customer_location, o.status as order_status, partner.name as partner_name
         FROM contractor_assignments ca
         JOIN orders o ON ca.order_id = o.id
         JOIN partners partner ON o.partner_id = partner.id
@@ -538,8 +587,9 @@ if ($partnerId) {
     $myJobs->execute([$partnerId]);
 } else {
     // PM sees all
-    $myJobs = $db->prepare("SELECT ca.*, o.order_number, o.customer_name, o.service_type, o.customer_location,
-        o.status as order_status, partner.name as partner_name, cp.name as contractor_name
+    $myJobs = $db->prepare("SELECT ca.*, o.order_number, o.customer_name, o.service_type, o.fttx_package,
+        o.aggregate_capacity, o.bandwidth, o.remote_hands_nrc_usd, o.base_nrc_usd, o.standard_nrc,
+        o.customer_location, o.status as order_status, partner.name as partner_name, cp.name as contractor_name
         FROM contractor_assignments ca
         JOIN orders o ON ca.order_id = o.id
         JOIN partners partner ON o.partner_id = partner.id

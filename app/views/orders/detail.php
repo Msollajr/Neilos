@@ -38,10 +38,17 @@ if (!$stDisplay) {
   </div>
   <div class="page-header-actions">
     <a href="<?= APP_URL ?>/?page=orders" class="btn btn-secondary"><?= svgIcon('list') ?> All Orders</a>
-    <button type="button" class="btn btn-info" onclick="viewSystemFile('<?= APP_URL ?>/?page=orders&action=generate_sof&id=<?= $order['id'] ?>', 'SOF_<?= e($order['order_number']) ?>.pdf', '<?= APP_URL ?>/?page=orders&action=generate_sof&id=<?= $order['id'] ?>&download=1', {doc_type:'Service Order Form'})"><?= svgIcon('document') ?> Generate &amp; View SOF</button>
-    <a href="<?= APP_URL ?>/?page=orders&action=generate_sof&id=<?= $order['id'] ?>&format=excel" class="btn btn-success"><?= svgIcon('download') ?> Excel SOF (.xlsx)</a>
-    <?php if ($isAdminUser && !in_array($status, ['Closed','Cancelled'])): ?>
-    <button class="btn btn-secondary" data-modal-open="statusModal"><?= svgIcon('edit') ?> Admin Override</button>
+    <?php if ($status === 'Closed'): ?>
+      <?php if ($isAdminUser || $isMgmt): ?>
+        <button type="button" class="btn btn-warning" data-modal-open="editClosedOrderModal"><?= svgIcon('edit') ?> Edit Closed Order</button>
+        <button type="button" class="btn btn-secondary" data-modal-open="statusModal"><?= svgIcon('refresh') ?> Status Override</button>
+      <?php else: ?>
+        <span class="badge badge-secondary" style="font-size:0.8rem;padding:7px 12px;display:inline-flex;align-items:center;gap:4px">🔒 Closed &amp; Locked</span>
+      <?php endif; ?>
+    <?php else: ?>
+      <?php if ($isAdminUser || $isMgmt): ?>
+        <button class="btn btn-secondary" data-modal-open="statusModal"><?= svgIcon('edit') ?> Admin Override</button>
+      <?php endif; ?>
     <?php endif; ?>
     <?php if ($isAdminUser || $isMgmt): ?>
     <form method="POST" action="<?= APP_URL ?>/?page=orders&action=delete" style="display:inline" data-confirm="Permanently delete order <?= e($order['order_number']) ?>?">
@@ -83,13 +90,21 @@ $currentIdx = array_search($status, $statusSteps);
       <?php endif; ?>
       <?php endforeach; ?>
     </div>
+    <?php if (!empty($order['sla_paused'])): ?>
+    <div class="alert alert-warning" style="margin-top:12px;margin-bottom:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <strong>⏸ SLA Clock Paused:</strong> A contractor blocker has been posted on this order. (Paused since <?= fmtDateTime($order['sla_paused_at']) ?> · Accumulated: <?= (float)$order['sla_paused_hours'] ?> hrs)
+      </div>
+      <span class="badge badge-warning" style="font-size:0.8rem">SLA Clock Paused</span>
+    </div>
+    <?php endif; ?>
     <?php if ($status === 'Not Feasible'): ?>
     <div class="alert alert-danger" style="margin-top:12px;margin-bottom:0">
       <?= svgIcon('x') ?> <strong>Not Feasible:</strong> <?= e($order['bsa_not_feasible_reason']) ?>
     </div>
     <?php elseif ($status === 'Management Approval'): ?>
     <div class="alert alert-warning" style="margin-top:12px;margin-bottom:0">
-      <?= svgIcon('users') ?> This order is awaiting <strong>Management Exception Approval</strong>.
+      <?= svgIcon('users') ?> This order is awaiting <strong>Management Exception Approval</strong> (KAM Proposed NRC: <?= $order['kam_proposed_nrc'] !== null ? formatTZS((float)$order['kam_proposed_nrc']) : 'Standard' ?>, MRC: <?= $order['kam_proposed_mrc'] !== null ? formatTZS((float)$order['kam_proposed_mrc']) : 'Standard' ?>).
     </div>
     <?php endif; ?>
   </div>
@@ -120,13 +135,15 @@ $currentIdx = array_search($status, $statusSteps);
         <?php if (!empty($order['contract_term'])): ?>
         <div class="form-group"><label>Minimum Service Term</label><div><?= e($order['contract_term']) ?></div></div>
         <?php endif; ?>
-        <div class="form-group"><label>Customer</label><div class="font-600"><?= e($order['customer_name']) ?></div></div>
+        <div class="form-group"><label>Customer Name</label><div class="font-600"><?= e($order['customer_name']) ?></div></div>
+        <div class="form-group"><label>Contact Person</label><div class="font-600"><?= e($order['customer_contact_name'] ?: '—') ?></div></div>
+        <div class="form-group"><label>Contact Phone</label><div><?= e($order['customer_contact_phone'] ?: '—') ?></div></div>
+        <div class="form-group"><label>Contact Email</label><div><?= e($order['customer_contact_email'] ?: '—') ?></div></div>
         <div class="form-group"><label>Location</label><div><?= e($order['customer_location'] ?: '—') ?></div></div>
         <?php if ($order['site_category']): ?><div class="form-group"><label>Site Category</label><div><?= e($order['site_category']) ?></div></div><?php endif; ?>
         <?php if ($order['gps_coordinates']): ?><div class="form-group"><label>GPS</label><div><?= e($order['gps_coordinates']) ?></div></div><?php endif; ?>
         <div class="form-group"><label>Partner</label><div><?= e($order['partner_name']) ?></div></div>
         <div class="form-group"><label>Assigned KAM</label><div><?= e($order['assigned_kam_name'] ?: '—') ?></div></div>
-        <?php if ($order['customer_contact_name']): ?><div class="form-group"><label>Customer Contact</label><div><?= e($order['customer_contact_name']) ?><?= $order['customer_contact_phone'] ? ' · '.e($order['customer_contact_phone']) : '' ?></div></div><?php endif; ?>
         <?php if ($order['circuit_id']): ?><div class="form-group"><label>Circuit ID</label><div class="font-600"><?= e($order['circuit_id']) ?></div></div><?php endif; ?>
         <?php if ($order['service_id']): ?><div class="form-group"><label>Service ID</label><div class="font-600"><?= e($order['service_id']) ?></div></div><?php endif; ?>
         <?php if ($order['closed_date']): ?>
@@ -156,6 +173,7 @@ $currentIdx = array_search($status, $statusSteps);
     </div>
   </div>
 
+<?php if (!$isPartner): ?>
   <!-- Commercial Summary Card (Single Source of Truth) -->
   <div class="card" style="margin-bottom:24px;border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden">
     <div class="card-header" style="background:var(--accent-pale);padding:14px 20px;border-bottom:1px solid var(--border)">
@@ -306,6 +324,7 @@ $currentIdx = array_search($status, $statusSteps);
     </div>
   </div>
 </div>
+<?php endif; // !$isPartner — commercial summary ?>
 
 <?php // ============================================================
 // ROLE-SPECIFIC ACTION PANELS
@@ -330,24 +349,30 @@ $currentIdx = array_search($status, $statusSteps);
       <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
       <div class="form-grid form-grid-3">
         <div class="form-group">
-          <label>Standard NRC (TZS) <span class="text-muted font-sm">Auto-populated</span></label>
-          <input type="number" class="form-control" value="<?= e($order['standard_nrc'] ?? $order['base_nrc_usd']) ?>" disabled style="opacity:.6">
+          <label>Standard NRC (TZS)</label>
+          <div class="input-group currency-input-group">
+            <span class="input-group-text currency-badge">TZS</span>
+            <input type="text" class="form-control" value="<?= number_format((float)($order['standard_nrc'] ?? $order['base_nrc_usd']), 0) ?>" disabled style="opacity:.7">
+          </div>
         </div>
         <div class="form-group">
-          <label>Revised NRC (TZS) <span class="text-muted font-sm">Edit if different from standard</span></label>
-          <input type="number" step="0.01" name="revised_nrc" class="form-control" value="<?= e($order['revised_nrc'] ?? '') ?>" placeholder="Leave blank if same as standard">
+          <label>Revised NRC (TZS) <span class="text-muted font-sm">Enter TZS amount</span></label>
+          <div class="input-group currency-input-group">
+            <span class="input-group-text currency-badge">TZS</span>
+            <input type="text" name="revised_nrc" class="form-control currency-input" data-currency="TZS" value="<?= $order['revised_nrc'] !== null ? number_format((float)$order['revised_nrc'], 0) : '' ?>" placeholder="e.g. 600,000">
+          </div>
         </div>
         <div class="form-group">
-          <label>NRC Justification <span class="required">*</span> <span class="text-muted font-sm">Required if NRC changes</span></label>
+          <label>NRC Justification <span class="required">*</span> <span class="text-muted font-sm">Mandatory if NRC changes</span></label>
           <input type="text" name="nrc_justification" class="form-control" value="<?= e($order['nrc_justification'] ?? '') ?>" placeholder="e.g. Extended fibre route 350m">
         </div>
       </div>
       <div class="form-group" style="margin-top:8px">
         <label>Technical Remarks <span class="required">*</span></label>
-        <textarea name="technical_remarks" class="form-control" rows="3" placeholder="Describe build requirement, distance, infrastructure conditions..."><?= e($order['bsa_special_conditions'] ?? '') ?></textarea>
+        <textarea name="technical_remarks" class="form-control" rows="3" placeholder="Describe build requirement, distance, infrastructure conditions..." required><?= e($order['bsa_special_conditions'] ?? '') ?></textarea>
       </div>
       <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
-        <button type="submit" class="btn btn-success"><?= svgIcon('check') ?> Technically Feasible</button>
+        <button type="submit" class="btn btn-success"><?= svgIcon('check') ?> Mark Technically Feasible &amp; Proceed to KAM</button>
       </div>
     </form>
 
@@ -402,110 +427,177 @@ $currentIdx = array_search($status, $statusSteps);
 <div class="card" style="margin-bottom:24px;border:2px solid var(--warning)">
   <div class="card-header" style="background:rgba(var(--warning-rgb,255,171,64),.12)">
     <div class="card-title"><?= svgIcon('dollar') ?> KAM Commercial Review</div>
-    <div class="card-subtitle">Review and approve MRC. NRC is locked — BSA-confirmed.</div>
+    <div class="card-subtitle">Review feasibility results, verify standard pricing, or propose commercial pricing exception for Management approval.</div>
   </div>
   <div class="card-body">
     <div class="alert alert-info" style="margin-bottom:16px">
-      <?= svgIcon('info') ?> <strong>NRC confirmed by BSA:</strong> TZS <?= money((float)($order['revised_nrc'] ?? $order['standard_nrc'] ?? $order['base_nrc_usd'])) ?> (read-only)
+      <?= svgIcon('info') ?> <strong>NRC confirmed by BSA:</strong> TZS <?= number_format((float)($order['revised_nrc'] ?? $order['standard_nrc'] ?? $order['base_nrc_usd']), 0) ?>
+      <?php if (!empty($order['management_return_remarks'])): ?>
+        <br><strong>⚠️ Management Return Note:</strong> <?= e($order['management_return_remarks']) ?>
+      <?php endif; ?>
     </div>
 
     <form method="POST" action="<?= APP_URL ?>/?page=orders&action=kam_approve" id="kamApproveForm">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-      <div class="form-grid form-grid-3">
-        <div class="form-group">
-          <label>Standard MRC (<?= e($order['mrc_currency']) ?>)</label>
-          <input type="number" class="form-control" value="<?= e($order['standard_mrc'] ?? $order['base_mrc']) ?>" disabled style="opacity:.6">
-        </div>
-        <div class="form-group">
-          <label>Revised MRC (<?= e($order['mrc_currency']) ?>) <span class="text-muted font-sm">If different from standard</span></label>
-          <input type="number" step="0.01" name="revised_mrc" id="revisedMrc" class="form-control" value="<?= e($order['revised_mrc'] ?? '') ?>" placeholder="Leave blank if standard applies">
-        </div>
-        <div class="form-group">
-          <label>Commercial Justification</label>
-          <input type="text" name="mrc_justification" class="form-control" value="<?= e($order['mrc_justification'] ?? '') ?>" placeholder="Required if MRC differs from standard">
-        </div>
-        <div class="form-group" style="grid-column: 1 / -1">
-          <label>KAM Attachment (Survey report / Commercial agreement)</label>
-          <input type="file" name="kam_attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
-        <button type="submit" class="btn btn-success"><?= svgIcon('check') ?> Approve — Move to Pending SOF</button>
-      </div>
-    </form>
 
-    <div class="divider" style="margin:16px 0"></div>
-
-    <form method="POST" action="<?= APP_URL ?>/?page=orders&action=kam_escalate">
-      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-      <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-      <div class="form-grid form-grid-2">
+      <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group">
-          <label>Proposed Revised MRC (for Management review)</label>
-          <input type="number" step="0.01" name="revised_mrc" class="form-control" placeholder="Price to be approved by Management">
+          <label>Standard MRC (System Price Book)</label>
+          <div class="input-group currency-input-group">
+            <span class="input-group-text currency-badge">TZS</span>
+            <input type="text" class="form-control" value="<?= number_format((float)($order['standard_mrc'] ?? $order['base_mrc']), 0) ?>" disabled style="opacity:.7">
+          </div>
         </div>
         <div class="form-group">
-          <label>Escalation Justification <span class="required">*</span></label>
-          <input type="text" name="mrc_justification" class="form-control" placeholder="Explain why exception approval is needed" required>
+          <label>Proposed Exception MRC (TZS) <span class="text-muted font-sm">Leave blank for standard</span></label>
+          <div class="input-group currency-input-group">
+            <span class="input-group-text currency-badge">TZS</span>
+            <input type="text" name="kam_proposed_mrc" class="form-control currency-input" data-currency="TZS" value="<?= $order['kam_proposed_mrc'] !== null ? number_format((float)$order['kam_proposed_mrc'], 0) : '' ?>" placeholder="e.g. 150,000">
+          </div>
         </div>
       </div>
-      <button type="submit" class="btn btn-warning"><?= svgIcon('users') ?> Requires Further Approval — Send to Management</button>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Proposed Exception NRC (TZS) <span class="text-muted font-sm">Only if proposing different from BSA's NRC</span></label>
+        <div class="input-group currency-input-group">
+          <span class="input-group-text currency-badge">TZS</span>
+          <input type="text" name="kam_proposed_nrc" class="form-control currency-input" data-currency="TZS" value="<?= $order['kam_proposed_nrc'] !== null ? number_format((float)$order['kam_proposed_nrc'], 0) : '' ?>" placeholder="Leave blank to use BSA confirmed NRC">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Commercial Justification <span class="text-muted font-sm">Mandatory if proposing pricing exception</span></label>
+        <input type="text" name="kam_commercial_justification" class="form-control" value="<?= e($order['kam_commercial_justification'] ?? '') ?>" placeholder="e.g. Volume discount for 50-site deal approved by sales head">
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label>General KAM Remarks</label>
+        <textarea name="kam_remarks" class="form-control" rows="2" placeholder="Optional notes..."><?= e($order['kam_remarks'] ?? '') ?></textarea>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button type="submit" class="btn btn-success"><?= svgIcon('check') ?> Submit Commercial Decision</button>
+      </div>
+      <div class="form-hint" style="margin-top:8px">
+        <strong>Note:</strong> Standard pricing moves order directly to <strong>Pending SOF</strong>. Discounted pricing is automatically routed to <strong>Management Approval</strong>.
+      </div>
     </form>
   </div>
 </div>
 <?php endif; ?>
 
-<?php // === MANAGEMENT APPROVAL PANEL === ?>
+<?php // === MANAGEMENT APPROVAL PANEL (4-Option Decision Model) === ?>
 <?php if ($status === 'Management Approval' && ($isMgmt || $isAdminUser)): ?>
 <div class="card" style="margin-bottom:24px;border:2px solid var(--danger)">
   <div class="card-header" style="background:rgba(220,53,69,.1)">
-    <div class="card-title"><?= svgIcon('users') ?> Management Approval — Exception Review</div>
-    <div class="card-subtitle">KAM has requested exception approval for non-standard pricing.</div>
+    <div class="card-title"><?= svgIcon('users') ?> Management Approval — Pricing Exception Review</div>
+    <div class="card-subtitle">Review KAM's pricing exception proposal and make an authoritative determination.</div>
   </div>
   <div class="card-body">
-    <div class="form-grid form-grid-3" style="margin-bottom:16px">
-      <div class="form-group"><label>Standard MRC</label><div><?= e($order['mrc_currency']) ?> <?= money((float)($order['standard_mrc'] ?? $order['base_mrc'])) ?></div></div>
-      <div class="form-group"><label>KAM Proposed MRC</label><div class="font-600"><?= e($order['mrc_currency']) ?> <?= money((float)($order['revised_mrc'] ?? 0)) ?></div></div>
-      <div class="form-group"><label>KAM Justification</label><div><?= e($order['mrc_justification'] ?: '—') ?></div></div>
+    <div class="grid-2col" style="gap:16px;margin-bottom:16px;padding:12px;background:var(--surface-2);border-radius:6px">
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">Price Comparison (TZS)</div>
+        <div style="font-size:0.875rem">
+          <strong>Standard NRC:</strong> TZS <?= number_format((float)($order['standard_nrc'] ?? $order['base_nrc_usd']), 0) ?><br>
+          <strong>BSA Confirmed NRC:</strong> TZS <?= number_format((float)($order['revised_nrc'] ?? $order['standard_nrc'] ?? $order['base_nrc_usd']), 0) ?><br>
+          <strong>KAM Proposed NRC:</strong> <span class="text-danger font-600">TZS <?= $order['kam_proposed_nrc'] !== null ? number_format((float)$order['kam_proposed_nrc'], 0) : 'Standard' ?></span><br>
+          <strong>Standard MRC:</strong> TZS <?= number_format((float)($order['standard_mrc'] ?? $order['base_mrc']), 0) ?><br>
+          <strong>KAM Proposed MRC:</strong> <span class="text-danger font-600">TZS <?= $order['kam_proposed_mrc'] !== null ? number_format((float)$order['kam_proposed_mrc'], 0) : 'Standard' ?></span>
+        </div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">Exception Justification</div>
+        <div style="font-size:0.875rem;color:var(--text-secondary)">
+          <?= e($order['kam_commercial_justification'] ?: ($order['mrc_justification'] ?: 'No justification provided.')) ?>
+        </div>
+      </div>
     </div>
 
-    <div class="form-grid form-grid-2">
-      <form method="POST" action="<?= APP_URL ?>/?page=orders&action=management_approve">
-        <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-        <div class="form-group">
-          <label>Management Approved Price (leave blank for requested price)</label>
-          <input type="number" step="0.01" name="management_approved_price" class="form-control" value="<?= e($order['revised_mrc'] ?? '') ?>" placeholder="Leave blank to approve as requested">
-        </div>
-        <div class="form-group">
-          <label>Management Remarks</label>
-          <textarea name="management_remarks" class="form-control" rows="2" placeholder="Optional remarks..."></textarea>
-        </div>
-        <div class="form-group" style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" name="management_remarks_visible" value="1" id="mrvCheck">
-          <label for="mrvCheck" style="margin:0;cursor:pointer">Make remarks visible to partner</label>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button type="submit" class="btn btn-success"><?= svgIcon('check') ?> Approve as requested</button>
-          <button type="submit" class="btn btn-primary" onclick="if(!this.form.management_approved_price.value){neilosAlert('Please enter a revised price.', 'Price Required');return false;}"><?= svgIcon('edit') ?> Approve with revised price</button>
-        </div>
-      </form>
+    <form method="POST" action="<?= APP_URL ?>/?page=orders&action=management_decide" id="mgmtDecisionForm">
+      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+      <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
 
-      <form method="POST" action="<?= APP_URL ?>/?page=orders&action=management_reject">
-        <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label" style="font-weight:700">Select Management Decision <span class="required">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:6px">
+            <input type="radio" name="management_decision" value="Approve as Requested" required onchange="toggleMgmtFields(this.value)">
+            <div>
+              <strong>1. Approve as Requested</strong>
+              <div style="font-size:0.8rem;color:var(--text-secondary)">Accept KAM's proposed exception pricing and proceed to Pending SOF.</div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:6px">
+            <input type="radio" name="management_decision" value="Approve with Revised Price" required onchange="toggleMgmtFields(this.value)">
+            <div>
+              <strong>2. Approve with Revised Price</strong>
+              <div style="font-size:0.8rem;color:var(--text-secondary)">Set custom management-approved NRC and/or MRC and proceed to Pending SOF.</div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:6px">
+            <input type="radio" name="management_decision" value="Keep Standard Price" required onchange="toggleMgmtFields(this.value)">
+            <div>
+              <strong>3. Keep Standard Price</strong>
+              <div style="font-size:0.8rem;color:var(--text-secondary)">Reject the exception, enforce standard price book rates, and proceed to Pending SOF.</div>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:6px">
+            <input type="radio" name="management_decision" value="Return to KAM" required onchange="toggleMgmtFields(this.value)">
+            <div>
+              <strong>4. Return to Account Manager (KAM)</strong>
+              <div style="font-size:0.8rem;color:var(--text-secondary)">Send back to Commercial stage for revision with mandatory remarks.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Revised Price Fields (Only for Approve with Revised Price) -->
+      <div id="mgmtRevisedPriceFields" style="display:none;margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px">
+        <div style="font-weight:700;margin-bottom:8px;color:#166534">Management Final Price Override (TZS)</div>
+        <div class="grid-2col" style="gap:12px">
+          <div class="form-group">
+            <label>Final NRC (TZS)</label>
+            <div class="input-group currency-input-group">
+              <span class="input-group-text currency-badge">TZS</span>
+              <input type="text" name="management_final_nrc" class="form-control currency-input" data-currency="TZS" value="<?= number_format((float)($order['kam_proposed_nrc'] ?? $order['revised_nrc'] ?? $order['standard_nrc'] ?? 0), 0) ?>" placeholder="e.g. 500,000">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Final MRC (TZS)</label>
+            <div class="input-group currency-input-group">
+              <span class="input-group-text currency-badge">TZS</span>
+              <input type="text" name="management_final_mrc" class="form-control currency-input" data-currency="TZS" value="<?= number_format((float)($order['kam_proposed_mrc'] ?? $order['standard_mrc'] ?? 0), 0) ?>" placeholder="e.g. 180,000">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Return Remarks (Only for Return to KAM) -->
+      <div id="mgmtReturnRemarksField" style="display:none;margin-bottom:16px">
         <div class="form-group">
-          <label>Reason for Rejecting Exception</label>
-          <textarea name="management_remarks" class="form-control" rows="3" placeholder="Explain why the exception is not approved (standard price will apply)..." required></textarea>
+          <label>Return Remarks for KAM <span class="required">*</span></label>
+          <textarea name="management_return_remarks" class="form-control" rows="2" placeholder="Explain what the KAM should revise..."></textarea>
         </div>
-        <div class="form-group" style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" name="management_remarks_visible" value="1" id="mrvCheck2">
-          <label for="mrvCheck2" style="margin:0;cursor:pointer">Make remarks visible to partner</label>
-        </div>
-        <button type="submit" class="btn btn-danger"><?= svgIcon('x') ?> Reject exception / keep standard price</button>
-      </form>
-    </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Management Decision Notes</label>
+        <textarea name="management_remarks" class="form-control" rows="2" placeholder="Optional audit comments..."><?= e($order['management_remarks'] ?? '') ?></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg"><?= svgIcon('check') ?> Confirm Management Decision</button>
+    </form>
+
+    <script>
+    function toggleMgmtFields(val) {
+      document.getElementById('mgmtRevisedPriceFields').style.display = (val === 'Approve with Revised Price') ? 'block' : 'none';
+      document.getElementById('mgmtReturnRemarksField').style.display = (val === 'Return to KAM') ? 'block' : 'none';
+    }
+    </script>
   </div>
 </div>
 <?php endif; ?>
@@ -538,15 +630,28 @@ $currentIdx = array_search($status, $statusSteps);
         <div class="card" style="background:var(--surface-2)">
           <div class="card-body" style="padding:16px">
             <div style="font-weight:600;margin-bottom:8px">Step 2 — Upload Signed SOF</div>
-            <p style="font-size:.875rem;color:var(--text-secondary);margin-bottom:12px">Sign the SOF (stamp + authorized signature) and upload it here.</p>
-            <form method="POST" action="<?= APP_URL ?>/?page=orders&action=upload_signed_sof" enctype="multipart/form-data">
-              <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-              <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-              <div class="form-group" style="margin-bottom:8px">
-                <input type="file" name="signed_sof" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+            <?php if (!empty($order['sof_signed_file'])): ?>
+              <div class="alert alert-success" style="padding:10px;margin-bottom:10px;font-size:0.85rem">
+                <?= svgIcon('check') ?> Signed SOF uploaded: <strong><?= e($order['sof_signed_filename']) ?></strong>
               </div>
-              <button type="submit" class="btn btn-success"><?= svgIcon('upload') ?> Upload Signed SOF &amp; Submit Order</button>
-            </form>
+              <form method="POST" action="<?= APP_URL ?>/?page=orders&action=delete_signed_sof" style="margin-bottom:10px">
+                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove the uploaded signed SOF to re-upload?')">
+                  <?= svgIcon('trash') ?> Remove &amp; Re-upload SOF
+                </button>
+              </form>
+            <?php else: ?>
+              <p style="font-size:.875rem;color:var(--text-secondary);margin-bottom:12px">Sign the SOF (stamp + authorized signature) and upload it here.</p>
+              <form method="POST" action="<?= APP_URL ?>/?page=orders&action=upload_signed_sof" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                <div class="form-group" style="margin-bottom:8px">
+                  <input type="file" name="signed_sof" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                </div>
+                <button type="submit" class="btn btn-success"><?= svgIcon('upload') ?> Upload Signed SOF &amp; Submit Order</button>
+              </form>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -559,38 +664,17 @@ $currentIdx = array_search($status, $statusSteps);
       <form method="POST" action="<?= APP_URL ?>/?page=orders&action=return_to_feasibility">
         <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
         <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-        <div class="form-grid form-grid-3" style="margin-bottom:12px">
-          <div class="form-group">
-            <label>Return Action</label>
-            <select name="return_action" class="form-control" required>
-              <option value="">Select option...</option>
-              <option value="back_to_survey">Back to survey (Routes to BSA)</option>
-              <option value="back_to_pricing">Back to Pricing (Routes to KAM)</option>
-              <option value="start_project">Start Project (Proceed with SOF)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Reason</label>
-            <select name="return_reason" class="form-control" required>
-              <option value="">Select reason...</option>
-              <option value="Technical concern">Technical concern</option>
-              <option value="NRC concern">NRC concern</option>
-              <option value="MRC / pricing concern">MRC / pricing concern</option>
-              <option value="Wrong customer/site details">Wrong customer/site details</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Your Remarks <span class="required">*</span></label>
-            <input type="text" name="return_remarks" class="form-control" placeholder="Explain your concern..." required>
-          </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Reason &amp; Remarks for Account Manager <span class="required">*</span></label>
+          <input type="text" name="return_remarks" class="form-control" placeholder="Describe your concern (e.g. request higher bandwidth discount or revision)..." required>
         </div>
-        <button type="submit" class="btn btn-warning"><?= svgIcon('refresh') ?> Return to Feasibility</button>
+        <button type="submit" class="btn btn-warning"><?= svgIcon('refresh') ?> Return to Account Manager (KAM)</button>
       </form>
     </div>
   </div>
 </div>
 <?php endif; ?>
+
 
 <?php // === SOF REVIEW PANEL (Internal) === ?>
 <?php if ($status === 'SOF Review' && !$isPartner): ?>
@@ -670,13 +754,13 @@ $currentIdx = array_search($status, $statusSteps);
     </div>
     <?php else: ?>
     <div class="alert alert-warning" style="margin-bottom:16px"><?= svgIcon('info') ?> No contractor assigned yet.</div>
-    <form method="POST" action="<?= APP_URL ?>/?page=orders&action=assign_contractor">
+    <form method="POST" action="<?= APP_URL ?>/?page=orders&action=assign_contractor" data-no-lookup="true">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
       <div class="form-grid form-grid-3">
         <div class="form-group">
           <label>Assign Contractor <span class="required">*</span></label>
-          <select name="contractor_partner_id" class="form-control" required>
+          <select name="contractor_partner_id" class="form-control" data-no-lookup="true" required>
             <option value="">Select contractor...</option>
             <?php foreach ($contractorList as $c): ?>
             <option value="<?= $c['id'] ?>"><?= e($c['name']) ?></option>
@@ -709,7 +793,11 @@ $currentIdx = array_search($status, $statusSteps);
             <option value="ONT/ONU Serial">ONT / ONU / CPE Serial</option>
             <option value="Signal Test">Signal Test / Optical Reading</option>
             <option value="Speed Test">Speed Test Result</option>
+            <option value="Ping Test">Ping Test Result</option>
+            <option value="Latency Test">Latency Test Result</option>
+            <option value="UAT Sign-off">UAT Sign-off Document</option>
             <option value="Installation Remarks">Installation Challenge / Note</option>
+            <option value="Other">Other Document / Attachment</option>
           </select>
         </div>
         <div class="form-group" style="margin:0">
@@ -724,6 +812,27 @@ $currentIdx = array_search($status, $statusSteps);
           <?= svgIcon('upload') ?> Upload Supplemental Evidence / Notes
         </button>
       </form>
+    </div>
+
+    <!-- PM Complete Installation / Move to Testing -->
+    <div style="margin-top:20px;padding:16px 20px;border-top:1px solid var(--border);background:var(--surface-2);border-radius:var(--radius-sm)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-weight:700;font-size:0.95rem;color:var(--text-primary)">
+            <?= svgIcon('check') ?> Submit Job as Complete
+          </div>
+          <div style="font-size:0.84rem;color:var(--text-secondary);margin-top:2px">
+            Installation work is finished. Move the order to <strong>Testing — Internal Review</strong> for PM/BSA testing approval.
+          </div>
+        </div>
+        <form method="POST" action="<?= APP_URL ?>/?page=orders&action=submit_installation_complete" data-confirm="Submit job as complete? This will transition the order to Testing — Internal Review." style="margin:0">
+          <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+          <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+          <button type="submit" class="btn btn-success">
+            <?= svgIcon('check') ?> Submit Job as Complete — Move to Testing
+          </button>
+        </form>
+      </div>
     </div>
     <?php endif; ?>
 
@@ -748,6 +857,28 @@ $currentIdx = array_search($status, $statusSteps);
   <div class="card-header"><div class="card-title"><?= svgIcon('check') ?> Testing — Internal Review</div></div>
   <div class="card-body">
     <p style="color:var(--text-secondary);margin-bottom:16px">Contractor has submitted work. Review evidence before sending to partner for UAT.</p>
+
+    <!-- NOC IP Configuration Status & Control -->
+    <div style="margin-bottom:16px;padding:12px 16px;border:1px solid <?= !empty($order['noc_ip_configured']) ? '#86efac' : '#fde047' ?>;background:<?= !empty($order['noc_ip_configured']) ? '#f0fdf4' : '#fefce8' ?>;border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-weight:700;color:<?= !empty($order['noc_ip_configured']) ? '#166534' : '#854d0e' ?>">
+          <?= !empty($order['noc_ip_configured']) ? '✅ NOC IP Configuration: COMPLETE' : '⏳ NOC IP Configuration: PENDING' ?>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:2px">
+          <?= !empty($order['noc_ip_configured']) ? 'IP and routing are configured. Speed Test and Ping Test evidence are mandatory to move to UAT.' : 'NOC has not yet completed IP config. Speed Test and Ping Test are optional until IP is configured.' ?>
+        </div>
+      </div>
+      <?php if ($isPM || $isBSA || $isAdminUser): ?>
+      <form method="POST" action="<?= APP_URL ?>/?page=orders&action=toggle_noc_ip" style="margin:0">
+        <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+        <input type="hidden" name="noc_ip_configured" value="<?= !empty($order['noc_ip_configured']) ? 0 : 1 ?>">
+        <button type="submit" class="btn btn-sm <?= !empty($order['noc_ip_configured']) ? 'btn-outline-secondary' : 'btn-primary' ?>">
+          <?= !empty($order['noc_ip_configured']) ? 'Revert to Pending' : 'Mark NOC IP as Configured' ?>
+        </button>
+      </form>
+      <?php endif; ?>
+    </div>
 
     <?php if (!empty($evidence)): ?>
     <div class="table-responsive" style="margin-bottom:16px;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -922,6 +1053,7 @@ $currentIdx = array_search($status, $statusSteps);
   <?php if (!empty($evidence)): ?><button class="tab-btn" data-tab="evidence" data-tab-group="order">Evidence (<?= count($evidence) ?>)</button><?php endif; ?>
   <?php if (!empty($progressUpdates) && !$isPartner): ?><button class="tab-btn" data-tab="progress" data-tab-group="order">Contractor Updates (<?= count($progressUpdates) ?>)</button><?php endif; ?>
   <?php if (!empty($orderReturns) && !$isPartner): ?><button class="tab-btn" data-tab="returns" data-tab-group="order">Return Audit (<?= count($orderReturns) ?>)</button><?php endif; ?>
+  <?php if (!empty($priceAudit) && !$isPartner): ?><button class="tab-btn" data-tab="price_audit" data-tab-group="order">Price Audit (<?= count($priceAudit) ?>)</button><?php endif; ?>
 </div>
 
 <div class="tab-panel active" data-tab-panel="timeline" data-tab-group="order">
@@ -936,7 +1068,7 @@ $currentIdx = array_search($status, $statusSteps);
           <div class="timeline-dot <?= $tl['status'] === 'Closed' ? 'success' : (in_array($tl['status'], ['Cancelled','Not Feasible']) ? 'danger' : '') ?>"></div>
           <div class="timeline-time"><?= fmtDateTime($tl['changed_at']) ?> by <?= e($tl['full_name'] ?: 'System') ?></div>
           <div class="timeline-label"><?= e($tl['status']) ?></div>
-          <?php if ($tl['note']): ?><div class="timeline-note"><?= e($tl['note']) ?></div><?php endif; ?>
+          <?php if (!$isPartner && ($tl['note'] ?? '')): ?><div class="timeline-note"><?= e($tl['note']) ?></div><?php endif; ?>
         </div>
         <?php endforeach; ?>
       </div>
@@ -958,7 +1090,14 @@ $currentIdx = array_search($status, $statusSteps);
           <?php foreach ($docs as $d): ?>
           <tr>
             <td class="font-600"><?= e($d['file_name']) ?></td>
-            <td><span class="badge badge-secondary"><?= e($d['document_type']) ?></span></td>
+            <td>
+              <?php
+              $isCountersigned = (($d['doc_type'] ?? '') === 'countersigned_sof' || $d['document_type'] === 'Countersigned SOF');
+              $isSigned = (($d['doc_type'] ?? '') === 'sof' || $d['document_type'] === 'Signed SOF');
+              $badgeClass = $isCountersigned ? 'badge-success' : ($isSigned ? 'badge-primary' : 'badge-secondary');
+              ?>
+              <span class="badge <?= $badgeClass ?>"><?= e($d['document_type']) ?></span>
+            </td>
             <td class="font-sm"><?= formatBytes($d['file_size']) ?></td>
             <td class="font-sm"><?= e($d['full_name'] ?: '—') ?></td>
             <td class="text-muted font-sm"><?= fmtDate($d['uploaded_at']) ?></td>
@@ -1064,20 +1203,147 @@ $currentIdx = array_search($status, $statusSteps);
 </div>
 <?php endif; ?>
 
-<?php // Admin Status Override Modal ?>
-<?php if ($isAdminUser && !in_array($status, ['Closed','Cancelled'])): ?>
+<?php if (!empty($priceAudit) && !$isPartner): ?>
+<div class="card" style="margin-bottom:24px;border:1px solid var(--border)">
+  <div class="card-header" style="background:var(--surface-2)">
+    <div>
+      <div class="card-title"><?= svgIcon('dollar') ?> Commercial Pricing Modification Audit Trail</div>
+      <div class="card-subtitle">Complete chronological record of all NRC and MRC revisions, proposals, and approvals.</div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date &amp; Time</th>
+          <th>Field Modified</th>
+          <th>Previous Value</th>
+          <th>New Value</th>
+          <th>Modified By</th>
+          <th>Lifecycle Stage</th>
+          <th>Justification / Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($priceAudit as $pa): ?>
+        <tr>
+          <td class="font-sm" style="white-space:nowrap"><?= fmtDateTime($pa['changed_at']) ?></td>
+          <td><strong><?= e(priceFieldLabel($pa['field_name'])) ?></strong></td>
+          <td class="font-sm text-muted"><?= $pa['old_value'] !== null ? formatTZS((float)$pa['old_value']) : '—' ?></td>
+          <td class="font-sm font-600" style="color:var(--primary)"><?= $pa['new_value'] !== null ? formatTZS((float)$pa['new_value']) : '—' ?></td>
+          <td class="font-sm"><?= e($pa['changed_by_name'] ?: 'System') ?></td>
+          <td><span class="badge badge-secondary"><?= e($pa['stage']) ?></span></td>
+          <td style="max-width:300px;font-size:0.85rem;color:var(--text-secondary)"><?= e($pa['justification'] ?: '—') ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php // Edit Closed Order Modal (Admin and Management only with mandatory audit reason) ?>
+<?php if (($isAdminUser || $isMgmt) && $status === 'Closed'): ?>
+<div class="modal-backdrop" id="editClosedOrderModal">
+  <div class="modal" style="max-width:720px;width:95%">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="modal-title">Edit Closed Order — <?= e($order['order_number']) ?></div>
+        <span class="badge badge-warning" style="font-size:0.75rem">Audit Reason Required</span>
+      </div>
+      <button class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="<?= APP_URL ?>/?page=orders&action=edit_closed_order">
+      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+      <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+      <div class="modal-body">
+        <div class="alert alert-warning" style="margin-bottom:16px;font-size:0.85rem">
+          <strong>⚠️ Audit Compliance Notice:</strong> Modifying a closed order will permanently log your identity, timestamp, and audit reason in the system audit trail.
+        </div>
+
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label>Customer Name <span class="text-danger">*</span></label>
+            <input type="text" name="customer_name" class="form-control" value="<?= e($order['customer_name']) ?>" required>
+          </div>
+          <div class="form-group">
+            <label>Contact Person Name</label>
+            <input type="text" name="customer_contact_name" class="form-control" value="<?= e($order['customer_contact_name']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Contact Phone</label>
+            <input type="text" name="customer_contact_phone" class="form-control" value="<?= e($order['customer_contact_phone']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Contact Email</label>
+            <input type="email" name="customer_contact_email" class="form-control" value="<?= e($order['customer_contact_email']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Location / Address</label>
+            <input type="text" name="customer_location" class="form-control" value="<?= e($order['customer_location']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Building Name</label>
+            <input type="text" name="building_name" class="form-control" value="<?= e($order['building_name']) ?>">
+          </div>
+          <div class="form-group">
+            <label>GPS Coordinates</label>
+            <input type="text" name="gps_coordinates" class="form-control" value="<?= e($order['gps_coordinates']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Bandwidth / Package</label>
+            <input type="text" name="bandwidth" class="form-control" value="<?= e($order['bandwidth'] ?: $order['fttx_package']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Circuit ID</label>
+            <input type="text" name="circuit_id" class="form-control" value="<?= e($order['circuit_id']) ?>">
+          </div>
+          <div class="form-group">
+            <label>Service ID</label>
+            <input type="text" name="service_id" class="form-control" value="<?= e($order['service_id']) ?>">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:12px">
+          <label>Special Requirements / Service Notes</label>
+          <textarea name="special_requirements" class="form-control" rows="2"><?= e($order['special_requirements']) ?></textarea>
+        </div>
+
+        <div class="form-group" style="margin-top:16px;padding:12px 16px;background:var(--surface-2);border-radius:6px;border:1px solid var(--border)">
+          <label style="color:var(--text-primary);font-weight:700">Audit Reason for Edit <span class="text-danger">*</span></label>
+          <div class="text-muted font-sm" style="margin-bottom:6px">Explain why this closed order is being edited (mandatory for audit compliance).</div>
+          <textarea name="audit_reason" class="form-control" rows="3" required placeholder="State operational/business reason for modifying this closed order..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-warning">Save Changes (Audit Logged)</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php // Admin / Management Status Override Modal ?>
+<?php if ($isAdminUser || $isMgmt): ?>
 <div class="modal-backdrop" id="statusModal">
   <div class="modal">
-    <div class="modal-header"><div class="modal-title">Admin Status Override</div><button class="modal-close" data-modal-close>&times;</button></div>
+    <div class="modal-header"><div class="modal-title">Status Override</div><button class="modal-close" data-modal-close>&times;</button></div>
     <form method="POST" action="<?= APP_URL ?>/?page=orders&action=update_status">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
       <div class="modal-body">
+        <?php if ($status === 'Closed'): ?>
+        <div class="alert alert-warning" style="margin-bottom:14px;font-size:0.85rem">
+          <strong>⚠️ Notice:</strong> This order is currently <strong>Closed</strong>. An audit reason is mandatory for any status change.
+        </div>
+        <?php endif; ?>
+
         <div class="form-group">
           <label>New Status</label>
           <select name="new_status" class="form-control" required>
             <?php foreach ($allStatuses as $st): ?>
-            <option value="<?= e($st) ?>" <?= $status === $st ? 'disabled' : '' ?>><?= e($st) ?></option>
+            <option value="<?= e($st) ?>" <?= $status === $st ? 'selected' : '' ?>><?= e($st) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -1095,13 +1361,13 @@ $currentIdx = array_search($status, $statusSteps);
           </select>
         </div>
         <div class="form-group" style="margin-top:12px">
-          <label>Note</label>
-          <textarea name="note" class="form-control" rows="3" placeholder="Reason for admin override..."></textarea>
+          <label>Audit Reason / Note <?= $status === 'Closed' ? '<span class="text-danger">*</span>' : '' ?></label>
+          <textarea name="note" class="form-control" rows="3" placeholder="Reason for status change..." <?= $status === 'Closed' ? 'required' : '' ?>></textarea>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
-        <button type="submit" class="btn btn-primary">Override Status</button>
+        <button type="submit" class="btn btn-primary">Save Status Change</button>
       </div>
     </form>
   </div>

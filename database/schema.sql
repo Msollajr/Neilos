@@ -178,6 +178,7 @@ DROP TABLE IF EXISTS orders;
 CREATE TABLE orders (
     id                          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_number                VARCHAR(50) NOT NULL UNIQUE,
+    sof_number                  VARCHAR(50) NULL COMMENT 'SO-prefixed reference generated at SOF print',
     partner_id                  INT UNSIGNED NOT NULL,
     user_id                     INT UNSIGNED NOT NULL,
     service_id                  INT UNSIGNED NOT NULL,
@@ -185,8 +186,15 @@ CREATE TABLE orders (
     capacity_unit               VARCHAR(20) DEFAULT 'Mbps',
     pop_location                VARCHAR(200) NOT NULL,
     customer_name               VARCHAR(200) NOT NULL,
-    end_user_address            TEXT NOT NULL,
-    city_region                 VARCHAR(100) NOT NULL,
+    customer_contact_name       VARCHAR(200) NOT NULL,
+    customer_contact_phone      VARCHAR(50)  NOT NULL,
+    customer_contact_email      VARCHAR(200) NOT NULL,
+    customer_location           VARCHAR(255) NULL,
+    building_name               VARCHAR(200) NULL,
+    floor_number                VARCHAR(50)  NULL,
+    apartment_number            VARCHAR(50)  NULL,
+    end_user_address            TEXT NULL,
+    city_region                 VARCHAR(100) NULL,
     gps_coordinates             VARCHAR(100),
     site_category               VARCHAR(100) NULL,
     interface_type              VARCHAR(50) DEFAULT 'SFP',
@@ -203,10 +211,20 @@ CREATE TABLE orders (
     mrc_justification           TEXT NULL,
     kam_approved_at             DATETIME NULL,
     kam_approved_by             INT UNSIGNED NULL,
+    -- KAM exception pricing (stored separately from BSA revised)
+    kam_proposed_nrc            DECIMAL(14,2) NULL COMMENT 'KAM exception NRC proposal',
+    kam_proposed_mrc            DECIMAL(14,2) NULL COMMENT 'KAM exception MRC proposal',
+    kam_commercial_justification TEXT NULL COMMENT 'Mandatory when KAM proposes exception',
+    kam_remarks                 TEXT NULL COMMENT 'Optional remarks from KAM',
     management_approved_at      DATETIME NULL,
     management_approved_by      INT UNSIGNED NULL,
     management_approved_price   DECIMAL(12,2) NULL,
+    -- Management 4-option decision fields
+    management_final_nrc        DECIMAL(14,2) NULL COMMENT 'Management final NRC when using Approve with Revised Price',
+    management_final_mrc        DECIMAL(14,2) NULL COMMENT 'Management final MRC when using Approve with Revised Price',
+    management_decision         ENUM('Approve as Requested','Approve with Revised Price','Keep Standard Price','Return to KAM') NULL,
     management_remarks          TEXT NULL,
+    management_return_remarks   TEXT NULL COMMENT 'Remarks when Management returns to KAM',
     management_remarks_visible  TINYINT(1) DEFAULT 0,
     sof_generated_at            DATETIME NULL,
     sof_uploaded_at             DATETIME NULL,
@@ -257,6 +275,12 @@ CREATE TABLE orders (
     uat_signoff_file            VARCHAR(500),
     billing_trigger_date        DATE,
     cancellation_reason         TEXT,
+    -- SLA pause/resume fields
+    sla_paused                  TINYINT(1) NOT NULL DEFAULT 0,
+    sla_paused_at               DATETIME NULL,
+    sla_paused_hours            DECIMAL(8,2) NOT NULL DEFAULT 0 COMMENT 'Accumulated paused hours',
+    -- NOC conditional evidence
+    noc_ip_configured           TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'PM flag: NOC has completed IP configuration',
     created_at                  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at                  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (partner_id) REFERENCES partners(id),
@@ -281,15 +305,16 @@ CREATE TABLE orders (
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS order_timeline;
 CREATE TABLE order_timeline (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    order_id        INT UNSIGNED NOT NULL,
-    user_id         INT UNSIGNED NOT NULL,
-    status          VARCHAR(100) NOT NULL,
-    action          VARCHAR(200) NOT NULL,
-    notes           TEXT,
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id          INT UNSIGNED NOT NULL,
+    status            VARCHAR(100) NOT NULL,
+    note              TEXT NULL,
+    changed_by        INT UNSIGNED NULL,
+    changed_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_order_status (order_id, status),
+    INDEX idx_changed_at (changed_at)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -297,16 +322,20 @@ CREATE TABLE order_timeline (
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS order_documents;
 CREATE TABLE order_documents (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    order_id        INT UNSIGNED NOT NULL,
-    doc_type        ENUM('sof','feasibility_report','diagram','uat_signoff','completion_certificate','invoice','other') NOT NULL,
-    file_name       VARCHAR(255) NOT NULL,
-    file_path       VARCHAR(500) NOT NULL,
-    file_size       INT UNSIGNED,
-    uploaded_by     INT UNSIGNED NOT NULL,
-    uploaded_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id            INT UNSIGNED NOT NULL,
+    doc_type            ENUM('sof','feasibility_report','diagram','uat_signoff','completion_certificate','invoice','evidence','countersigned_sof','other') NOT NULL DEFAULT 'other',
+    evidence_category   VARCHAR(100) NULL COMMENT 'Links to evidence checklist type for multi-file support',
+    is_partner_visible  TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'If 1, partner can see this doc',
+    document_type       VARCHAR(100) NULL COMMENT 'Legacy friendly name',
+    file_name           VARCHAR(255) NOT NULL,
+    file_path           VARCHAR(500) NOT NULL,
+    file_size           INT UNSIGNED,
+    uploaded_by         INT UNSIGNED NOT NULL,
+    uploaded_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+    FOREIGN KEY (uploaded_by) REFERENCES users(id),
+    INDEX idx_order_doc (order_id, doc_type)
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
@@ -393,6 +422,8 @@ CREATE TABLE contractor_progress_updates (
     order_id        INT UNSIGNED NOT NULL,
     updated_by      INT UNSIGNED NOT NULL,
     progress_status VARCHAR(100) NOT NULL DEFAULT 'In Progress',
+    is_blocker      TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'If 1, this update is a blocker — SLA pauses',
+    is_resumed      TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'If 1, installation resumed — SLA resumes',
     delay_reason    ENUM('Customer Unavailable','Access Denied','Weather','Missing Materials','Technical Issue','Other') NULL,
     notes           TEXT NOT NULL,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -463,11 +494,13 @@ CREATE TABLE evidence_checklist_config (
                         'Signal Test',
                         'Speed Test',
                         'Latency Test',
+                        'Ping Test',
                         'UAT Sign-off',
                         'Installation Remarks',
                         'Other'
                     ) NOT NULL,
     is_mandatory    TINYINT(1) DEFAULT 1,
+    is_noc_conditional TINYINT(1) DEFAULT 0 COMMENT 'If 1, only required when noc_ip_configured=1',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_service_evidence (service_type, evidence_type)
 ) ENGINE=InnoDB;
@@ -513,6 +546,118 @@ CREATE TABLE active_services (
     INDEX idx_partner (partner_id)
 ) ENGINE=InnoDB;
 
+-- ------------------------------------------------------------
+-- 18. neilos_company_info
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS neilos_company_info;
+CREATE TABLE neilos_company_info (
+    id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    company_name         VARCHAR(200) NOT NULL DEFAULT 'Neilos Network Ltd',
+    trading_name         VARCHAR(200) NULL,
+    registration_number  VARCHAR(100) NULL,
+    tin                  VARCHAR(100) NULL,
+    vat_vrn              VARCHAR(100) NULL,
+    address              TEXT NULL,
+    city_region          VARCHAR(100) NULL DEFAULT 'Dar es Salaam',
+    country              VARCHAR(100) NULL DEFAULT 'Tanzania',
+    phone                VARCHAR(50)  NULL,
+    email                VARCHAR(200) NULL,
+    website              VARCHAR(200) NULL,
+    authorized_signatory VARCHAR(200) NULL,
+    signatory_title      VARCHAR(100) NULL,
+    finance_contact      VARCHAR(200) NULL,
+    finance_email        VARCHAR(200) NULL,
+    tech_contact         VARCHAR(200) NULL,
+    tech_email           VARCHAR(200) NULL,
+    logo_path            VARCHAR(500) NULL,
+    updated_by           INT UNSIGNED NULL,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- 19. price_change_audit
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS price_change_audit;
+CREATE TABLE price_change_audit (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id      INT UNSIGNED NOT NULL,
+    field_name    VARCHAR(100) NOT NULL,
+    old_value     DECIMAL(14,2) NULL,
+    new_value     DECIMAL(14,2) NULL,
+    currency      VARCHAR(10) NOT NULL DEFAULT 'TZS',
+    changed_by    INT UNSIGNED NOT NULL,
+    stage         VARCHAR(100) NOT NULL,
+    justification TEXT NULL,
+    changed_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id)   REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES users(id),
+    INDEX idx_order (order_id),
+    INDEX idx_changed_at (changed_at)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- 20. ftth_bulk_uploads
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS ftth_bulk_uploads;
+CREATE TABLE ftth_bulk_uploads (
+    id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uploaded_by    INT UNSIGNED NOT NULL,
+    original_file  VARCHAR(255) NOT NULL,
+    total_rows     INT NOT NULL DEFAULT 0,
+    success_rows   INT NOT NULL DEFAULT 0,
+    error_rows     INT NOT NULL DEFAULT 0,
+    errors_json    LONGTEXT NULL,
+    created_orders LONGTEXT NULL,
+    uploaded_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id),
+    INDEX idx_uploaded_at (uploaded_at)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- 21. audit_logs
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS audit_logs;
+CREATE TABLE audit_logs (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT UNSIGNED NULL,
+    action      VARCHAR(255) NOT NULL,
+    module      VARCHAR(100) NOT NULL DEFAULT '',
+    record_id   INT UNSIGNED NULL,
+    old_value   TEXT NULL,
+    new_value   TEXT NULL,
+    ip_address  VARCHAR(50) NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_module (module),
+    INDEX idx_record (record_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- 22. notification_queue
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS notification_queue;
+CREATE TABLE notification_queue (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    channel       ENUM('Email','SMS','WhatsApp') NOT NULL DEFAULT 'Email',
+    recipient     VARCHAR(255) NOT NULL,
+    subject       VARCHAR(255) NOT NULL,
+    message       TEXT NOT NULL,
+    context_type  VARCHAR(50) NULL,
+    context_id    INT UNSIGNED NULL,
+    status        ENUM('Queued','Sent','Failed') NOT NULL DEFAULT 'Queued',
+    attempts      INT NOT NULL DEFAULT 0,
+    error_message TEXT NULL,
+    sent_at       DATETIME NULL,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB;
+
+
+
 -- ============================================================
 -- INITIAL SEED DATA
 -- Default Passwords: Admin@1234
@@ -548,37 +693,63 @@ INSERT INTO services (id, name, code, category, description, unit, base_nrc, bas
 (4, 'IP Transit Service', 'IPT-STD', 'IP Transit', 'BGP IP Transit with multiple Tier-1 upstream paths.', 'Mbps', 200.00, 8.00),
 (5, 'FTTH Wholesale Fiber Connection', 'FTTH-WHOLESALE', 'Internet', 'Wholesale last-mile FTTH connection for ISPs and Resellers.', 'Mbps', 60.00, 8.00);
 
--- Seed Evidence Checklist
-INSERT INTO evidence_checklist_config (service_type, evidence_type, is_mandatory) VALUES
-('FTTH', 'Site Photo',           1),
-('FTTH', 'ONT/ONU Serial',       1),
-('FTTH', 'Signal Test',          1),
-('FTTH', 'Speed Test',           1),
-('FTTH', 'Latency Test',         0),
-('FTTH', 'UAT Sign-off',         1),
-('FTTH', 'Installation Remarks', 1),
-('FTTB', 'Site Photo',           1),
-('FTTB', 'ONT/ONU Serial',       1),
-('FTTB', 'Signal Test',          1),
-('FTTB', 'Speed Test',           1),
-('FTTB', 'Latency Test',         1),
-('FTTB', 'UAT Sign-off',         1),
-('FTTB', 'Installation Remarks', 1),
-('DIA', 'Site Photo',            1),
-('DIA', 'ONT/ONU Serial',        1),
-('DIA', 'Signal Test',           1),
-('DIA', 'Speed Test',            1),
-('DIA', 'Latency Test',          1),
-('DIA', 'UAT Sign-off',          1),
-('DIA', 'Installation Remarks',  1),
-('Dedicated Layer 2', 'Site Photo',           1),
-('Dedicated Layer 2', 'Signal Test',          1),
-('Dedicated Layer 2', 'Speed Test',           1),
-('Dedicated Layer 2', 'Latency Test',         1),
-('Dedicated Layer 2', 'UAT Sign-off',         1),
-('Dedicated Layer 2', 'Installation Remarks', 1),
-('Remote Hands Only', 'Site Photo',           1),
-('Remote Hands Only', 'Installation Remarks', 1);
+-- Seed Evidence Checklist (is_noc_conditional=1 means only required when NOC has configured IP)
+INSERT INTO evidence_checklist_config (service_type, evidence_type, is_mandatory, is_noc_conditional) VALUES
+('FTTH', 'Site Photo',           1, 0),
+('FTTH', 'ONT/ONU Serial',       1, 0),
+('FTTH', 'Signal Test',          1, 0),
+('FTTH', 'Speed Test',           1, 1),
+('FTTH', 'Ping Test',            1, 1),
+('FTTH', 'Latency Test',         1, 0),
+('FTTH', 'UAT Sign-off',         1, 0),
+('FTTH', 'Installation Remarks', 1, 0),
+('FTTB', 'Site Photo',           1, 0),
+('FTTB', 'ONT/ONU Serial',       1, 0),
+('FTTB', 'Signal Test',          1, 0),
+('FTTB', 'Speed Test',           1, 1),
+('FTTB', 'Ping Test',            1, 1),
+('FTTB', 'Latency Test',         1, 0),
+('FTTB', 'UAT Sign-off',         1, 0),
+('FTTB', 'Installation Remarks', 1, 0),
+('DIA', 'Site Photo',            1, 0),
+('DIA', 'ONT/ONU Serial',        1, 0),
+('DIA', 'Signal Test',           1, 0),
+('DIA', 'Speed Test',            1, 1),
+('DIA', 'Ping Test',             1, 1),
+('DIA', 'Latency Test',          1, 0),
+('DIA', 'UAT Sign-off',          1, 0),
+('DIA', 'Installation Remarks',  1, 0),
+('Dedicated Layer 2', 'Site Photo',           1, 0),
+('Dedicated Layer 2', 'ONT/ONU Serial',       1, 0),
+('Dedicated Layer 2', 'Signal Test',          1, 0),
+('Dedicated Layer 2', 'Speed Test',           1, 1),
+('Dedicated Layer 2', 'Ping Test',            1, 1),
+('Dedicated Layer 2', 'Latency Test',         1, 0),
+('Dedicated Layer 2', 'UAT Sign-off',         1, 0),
+('Dedicated Layer 2', 'Installation Remarks', 1, 0),
+('Layer 2 ( last mile)', 'Site Photo',           1, 0),
+('Layer 2 ( last mile)', 'ONT/ONU Serial',       1, 0),
+('Layer 2 ( last mile)', 'Signal Test',          1, 0),
+('Layer 2 ( last mile)', 'Speed Test',           1, 1),
+('Layer 2 ( last mile)', 'Ping Test',            1, 1),
+('Layer 2 ( last mile)', 'Latency Test',         1, 0),
+('Layer 2 ( last mile)', 'UAT Sign-off',         1, 0),
+('Layer 2 ( last mile)', 'Installation Remarks', 1, 0),
+('BIA (Broadband Internet Access)', 'Site Photo',           1, 0),
+('BIA (Broadband Internet Access)', 'ONT/ONU Serial',       1, 0),
+('BIA (Broadband Internet Access)', 'Signal Test',          1, 0),
+('BIA (Broadband Internet Access)', 'Speed Test',           1, 1),
+('BIA (Broadband Internet Access)', 'Ping Test',            1, 1),
+('BIA (Broadband Internet Access)', 'Latency Test',         1, 0),
+('BIA (Broadband Internet Access)', 'UAT Sign-off',         1, 0),
+('BIA (Broadband Internet Access)', 'Installation Remarks', 1, 0),
+('Remote Hands Only', 'Site Photo',           1, 0),
+('Remote Hands Only', 'ONT/ONU Serial',       1, 0),
+('Remote Hands Only', 'Installation Remarks', 1, 0);
+
+-- Seed default Neilos company info
+INSERT INTO neilos_company_info (id, company_name, city_region, country)
+VALUES (1, 'Neilos Network Ltd', 'Dar es Salaam', 'Tanzania');
 
 -- Seed SLA Config
 INSERT INTO sla_config (sla_name, sla_type, target_hours, description) VALUES

@@ -31,24 +31,26 @@ function renderComplianceDocUploadRow($docKey, $docLabel, $filePath, $appId, $is
         <div style="display:flex;align-items:center;gap:10px">
           <strong style="font-size:0.95rem;color:var(--text-primary)"><?= e($docLabel) ?> <span class="text-danger">*</span></strong>
           <?php if ($hasFile): ?>
-            <span class="badge badge-success" style="font-size:0.78rem;padding:4px 9px">✓ Uploaded (1)</span>
+            <span class="badge-uploaded">✓ Uploaded (1)</span>
           <?php else: ?>
-            <span class="badge badge-danger" style="font-size:0.78rem;padding:4px 9px">Required</span>
+            <span class="badge badge-danger" style="font-size:0.75rem;padding:4px 9px">Required</span>
           <?php endif; ?>
         </div>
 
         <?php if ($hasFile): ?>
           <div style="display:flex;align-items:center;gap:6px">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="viewSystemFile('<?= e($filePath) ?>', '<?= e($fileName) ?>', '<?= e($downloadUrl) ?>')">
-              View
+            <button type="button" class="btn-file-action btn-file-view" onclick="viewSystemFile('<?= e($filePath) ?>', '<?= e($fileName) ?>', '<?= e($downloadUrl) ?>')">
+              <?= svgIcon('eye', 13) ?> View
             </button>
-            <a href="<?= e($downloadUrl) ?>" class="btn btn-secondary btn-sm">Download</a>
+            <a href="<?= e($downloadUrl) ?>" class="btn-file-action btn-file-download" style="text-decoration:none">
+              <?= svgIcon('download', 13) ?> Download
+            </a>
             <?php if (!$isReadonly): ?>
-              <label class="btn btn-warning btn-sm" style="margin:0;cursor:pointer">
-                Replace <input type="file" name="<?= e($docKey) ?>" style="display:none" onchange="this.form.submit()">
+              <label class="btn-file-action btn-file-replace" style="margin:0;cursor:pointer">
+                <?= svgIcon('edit', 13) ?> Replace <input type="file" name="<?= e($docKey) ?>" style="display:none" onchange="this.form.submit()">
               </label>
-              <button type="button" class="btn btn-danger btn-sm" onclick="deleteKycDoc('<?= e($docKey) ?>')">
-                Delete
+              <button type="button" class="btn-file-action btn-file-delete" onclick="deleteKycDoc('<?= e($docKey) ?>')">
+                <?= svgIcon('trash', 13) ?> Delete
               </button>
             <?php endif; ?>
           </div>

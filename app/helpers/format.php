@@ -12,6 +12,105 @@ function money(float $amount, string $currency = ''): string {
 }
 
 /**
+ * Format a numeric amount as TZS with thousands separator.
+ * e.g. 240000 → "TZS 240,000"
+ * Handles null gracefully with fallback.
+ */
+function formatTZS(?float $amount, bool $showSymbol = true, string $fallback = '—'): string {
+    if ($amount === null) {
+        return $fallback;
+    }
+    $formatted = number_format($amount, 0, '.', ',');
+    return $showSymbol ? "TZS $formatted" : $formatted;
+}
+
+/**
+ * Parse and validate a TZS amount input string.
+ * Normalizes user input (strips "TZS", commas, spaces).
+ * Strictly validates:
+ *  - Non-empty when not nullable (blocks blank approval bypass)
+ *  - Non-negative (blocks negative inputs)
+ *  - Valid numeric format (rejects alphabetic / malformed text)
+ *  - Non-zero unless allowZero is true (preserves distinction between blank & zero)
+ *  - Configurable maximum threshold (blocks unreasonable values)
+ * 
+ * Returns clean numeric float or null.
+ * Throws RuntimeException with clear error message on validation failure.
+ */
+function parseTZSInput(
+    ?string $raw,
+    bool $nullable = false,
+    bool $allowZero = false,
+    ?float $max = null,
+    string $fieldLabel = 'Amount'
+): ?float {
+    if ($raw === null) {
+        if ($nullable) return null;
+        throw new RuntimeException("$fieldLabel is required.");
+    }
+
+    $trimmed = trim($raw);
+    if ($trimmed === '') {
+        if ($nullable) return null;
+        throw new RuntimeException("$fieldLabel is required.");
+    }
+
+    // Check for negative sign upfront
+    if (str_contains($trimmed, '-')) {
+        throw new RuntimeException("$fieldLabel cannot be negative.");
+    }
+
+    // Strip currency symbols, spaces, commas, and formatting characters
+    $clean = str_ireplace(['TZS', ',', ' ', "\xc2\xa0", "\t", "\n", "\r"], '', $trimmed);
+
+    // Validate that cleaned string is strictly numeric digits (with optional 1-2 decimal places)
+    if (!preg_match('/^\d+(\.\d{1,2})?$/', $clean)) {
+        throw new RuntimeException("$fieldLabel must be a valid numeric amount.");
+    }
+
+    $val = (float)$clean;
+
+    if ($val < 0) {
+        throw new RuntimeException("$fieldLabel cannot be negative.");
+    }
+
+    if (!$allowZero && $val == 0.0) {
+        throw new RuntimeException("$fieldLabel cannot be zero.");
+    }
+
+    if ($max !== null && $val > $max) {
+        throw new RuntimeException("$fieldLabel exceeds maximum allowed limit of " . formatTZS($max) . ".");
+    }
+
+    return $val;
+}
+
+/**
+ * Generate an SO-prefixed Service Order Form number.
+ * Format: SO-YYMMDD-NNN (auto-increments within the same day).
+ */
+function generateSofNumber(int $orderId = 0): string {
+    $ymd  = date('ymd');
+    $base = 'SO-' . $ymd . '-';
+    try {
+        $db = getDB();
+        // Ensure the row has an SO number stored before generating a new one
+        if ($orderId) {
+            $existing = $db->prepare("SELECT sof_number FROM orders WHERE id = ?");
+            $existing->execute([$orderId]);
+            $sofNum = $existing->fetchColumn();
+            if ($sofNum) return $sofNum;
+        }
+        $stmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE sof_number LIKE ?");
+        $stmt->execute([$base . '%']);
+        $count = (int)$stmt->fetchColumn();
+        return $base . str_pad($count + 1, 3, '0', STR_PAD_LEFT);
+    } catch (Exception $e) {
+        return $base . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
+    }
+}
+
+/**
  * Format bytes to human-readable size.
  */
 function formatBytes(int $bytes): string {
@@ -433,19 +532,19 @@ function renderFileActions(array $options): string {
     $html = '<div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">';
 
     // 1. View Button (Opens in-app preview modal)
-    $html .= '<button type="button" class="btn btn-xs btn-outline-primary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation(); viewSystemFile(\'' . e($fullFileUrl) . '\', \'' . e($fileName) . '\', \'' . e($downloadUrl) . '\', ' . $jsonMeta . ')" title="View in-app document preview">';
+    $html .= '<button type="button" class="btn-file-action btn-file-view" onclick="event.stopPropagation(); viewSystemFile(\'' . e($fullFileUrl) . '\', \'' . e($fileName) . '\', \'' . e($downloadUrl) . '\', ' . $jsonMeta . ')" title="View in-app document preview">';
     $html .= svgIcon('eye', 13) . ' View';
     $html .= '</button>';
 
     // 2. Download Button (Direct forced attachment download to local computer)
-    $html .= '<a href="' . e($downloadUrl) . '" class="btn btn-xs btn-secondary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;text-decoration:none;" title="Download file to computer">';
+    $html .= '<a href="' . e($downloadUrl) . '" class="btn-file-action btn-file-download" style="text-decoration:none;" title="Download file to computer">';
     $html .= svgIcon('download', 13) . ' Download';
     $html .= '</a>';
 
     // 3. Edit / Replace & Delete if authorized
     if ($canEdit) {
         if ($replaceUrl) {
-            $html .= '<button type="button" class="btn btn-xs btn-outline-secondary" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation(); window.location.href=\'' . e($replaceUrl) . '\'" title="Upload replacement file">';
+            $html .= '<button type="button" class="btn-file-action btn-file-replace" onclick="event.stopPropagation(); window.location.href=\'' . e($replaceUrl) . '\'" title="Upload replacement file">';
             $html .= svgIcon('edit', 13) . ' Replace';
             $html .= '</button>';
         }
@@ -454,7 +553,7 @@ function renderFileActions(array $options): string {
             $html .= '<form method="POST" action="' . e($deleteUrl) . '" style="display:inline" data-confirm="Delete file \'' . e($fileName) . '\'? This action cannot be undone." data-confirm-title="Delete File?" data-confirm-btn="Delete" data-confirm-class="btn-danger" data-confirm-icon="🗑️" onclick="event.stopPropagation()">';
             $html .= '<input type="hidden" name="csrf_token" value="' . $csrfToken . '">';
             $html .= '<input type="hidden" name="id" value="' . (int)$deleteId . '">';
-            $html .= '<button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:0.72rem;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;" title="Delete file">';
+            $html .= '<button type="submit" class="btn-file-action btn-file-delete" title="Delete file">';
             $html .= svgIcon('trash', 13) . ' Delete';
             $html .= '</button>';
             $html .= '</form>';

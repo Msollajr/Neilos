@@ -24,9 +24,11 @@ define('USD_TZS_RATE', 2585);
 // VAT rate
 define('VAT_RATE', 0.18);
 
-// Default NRC values
-define('DEFAULT_BASE_NRC', 60.00);
-define('REMOTE_HANDS_NRC', 30.00);
+// Financial limits (TZS)
+define('MAX_NRC_AMOUNT', 100000000.0); // TZS 100 Million
+define('MAX_MRC_AMOUNT', 500000000.0); // TZS 500 Million
+define('MIN_NRC_AMOUNT', 0.0);
+define('MIN_MRC_AMOUNT', 0.0);
 
 // KAM list
 define('KAM_LIST', ['Gloria Entebbe', 'Michael Corss']);
@@ -36,14 +38,34 @@ define('SESSION_LIFETIME', 3600 * 8); // 8 hours
 
 $pdo = null;
 
+/**
+ * Returns a live PDO connection, automatically reconnecting if MySQL
+ * has closed the connection (SQLSTATE HY000 / error 2006 "server has gone away").
+ */
 function getDB(): PDO {
     global $pdo;
+
+    // If we have a cached connection, verify it is still alive before returning it.
+    // A cheap SELECT 1 ping catches error 2006 without an extra round-trip on every call
+    // because PDO buffers the exception rather than crashing.
+    if ($pdo !== null) {
+        try {
+            $pdo->query('SELECT 1');
+        } catch (PDOException $e) {
+            // Connection is stale (e.g. MySQL wait_timeout or server restart).
+            // Discard it so the block below creates a fresh one.
+            $pdo = null;
+        }
+    }
+
     if ($pdo === null) {
         $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
+            // Keep the MySQL session alive for 8 hours to match SESSION_LIFETIME.
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET SESSION wait_timeout=28800, interactive_timeout=28800",
         ];
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
@@ -98,6 +120,35 @@ function getDB(): PDO {
                     ('Dedicated Layer 2', 'Site Photo', 1), ('Dedicated Layer 2', 'Signal Test', 1), ('Dedicated Layer 2', 'Speed Test', 1), ('Dedicated Layer 2', 'Latency Test', 1), ('Dedicated Layer 2', 'UAT Sign-off', 1), ('Dedicated Layer 2', 'Installation Remarks', 1),
                     ('Remote Hands Only', 'Site Photo', 1), ('Remote Hands Only', 'Installation Remarks', 1)
                 ");
+                $orderCols = $pdo->query("SHOW COLUMNS FROM orders")->fetchAll(PDO::FETCH_COLUMN);
+                $neededOrderCols = [
+                    'kam_remarks'                  => "ALTER TABLE orders ADD COLUMN kam_remarks TEXT NULL",
+                    'kam_proposed_nrc'             => "ALTER TABLE orders ADD COLUMN kam_proposed_nrc DECIMAL(14,2) NULL",
+                    'kam_proposed_mrc'             => "ALTER TABLE orders ADD COLUMN kam_proposed_mrc DECIMAL(14,2) NULL",
+                    'kam_commercial_justification' => "ALTER TABLE orders ADD COLUMN kam_commercial_justification TEXT NULL",
+                    'kam_approved_at'              => "ALTER TABLE orders ADD COLUMN kam_approved_at DATETIME NULL",
+                    'kam_approved_by'              => "ALTER TABLE orders ADD COLUMN kam_approved_by INT UNSIGNED NULL",
+                    'assigned_kam_name'            => "ALTER TABLE orders ADD COLUMN assigned_kam_name VARCHAR(100) NULL",
+                    'kam_id'                       => "ALTER TABLE orders ADD COLUMN kam_id INT UNSIGNED NULL",
+                    'management_final_nrc'         => "ALTER TABLE orders ADD COLUMN management_final_nrc DECIMAL(14,2) NULL",
+                    'management_final_mrc'         => "ALTER TABLE orders ADD COLUMN management_final_mrc DECIMAL(14,2) NULL",
+                    'management_decision'          => "ALTER TABLE orders ADD COLUMN management_decision VARCHAR(100) NULL",
+                    'management_remarks'           => "ALTER TABLE orders ADD COLUMN management_remarks TEXT NULL",
+                    'management_return_remarks'    => "ALTER TABLE orders ADD COLUMN management_return_remarks TEXT NULL",
+                    'management_remarks_visible'   => "ALTER TABLE orders ADD COLUMN management_remarks_visible TINYINT(1) DEFAULT 0",
+                    'management_approved_at'       => "ALTER TABLE orders ADD COLUMN management_approved_at DATETIME NULL",
+                    'management_approved_by'       => "ALTER TABLE orders ADD COLUMN management_approved_by INT UNSIGNED NULL",
+                    'management_approved_price'    => "ALTER TABLE orders ADD COLUMN management_approved_price DECIMAL(12,2) NULL",
+                    'sla_paused'                   => "ALTER TABLE orders ADD COLUMN sla_paused TINYINT(1) DEFAULT 0",
+                    'sla_paused_at'                => "ALTER TABLE orders ADD COLUMN sla_paused_at DATETIME NULL",
+                    'sla_paused_hours'             => "ALTER TABLE orders ADD COLUMN sla_paused_hours DECIMAL(10,2) DEFAULT 0.00",
+                    'sla_pause_reason'             => "ALTER TABLE orders ADD COLUMN sla_pause_reason TEXT NULL",
+                ];
+                foreach ($neededOrderCols as $colName => $alterSql) {
+                    if (!in_array($colName, $orderCols)) {
+                        $pdo->exec($alterSql);
+                    }
+                }
             } catch (Throwable $t) {}
         } catch (PDOException $e) {
             http_response_code(500);
@@ -106,3 +157,4 @@ function getDB(): PDO {
     }
     return $pdo;
 }
+
